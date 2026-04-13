@@ -103,6 +103,7 @@
             medtStart.Size = new Size(100, 23);
             medtStart.TabIndex = 1;
             medtStart.Text = "000000";
+            medtStart.Leave += medtStart_Leave;
             // 
             // lblStart
             // 
@@ -121,7 +122,6 @@
             listView1.FullRowSelect = true;
             listView1.GridLines = true;
             listView1.Location = new Point(0, 160);
-            listView1.MultiSelect = false;
             listView1.Name = "listView1";
             listView1.Size = new Size(920, 404);
             listView1.TabIndex = 2;
@@ -131,6 +131,7 @@
             listView1.DragDrop += listView1_DragDrop;
             listView1.DragEnter += listView1_DragEnter;
             listView1.DragOver += listView1_DragOver;
+            listView1.KeyDown += listView1_KeyDown;
             // 
             // colFileName
             // 

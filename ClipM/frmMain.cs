@@ -186,7 +186,7 @@ namespace ClipM
 
         private void frmClipM_Activated(object sender, EventArgs e)
         {
-            CLog("Form Activated..");
+//            CLog("Form Activated..");
             ReadClipboard();
         }
 

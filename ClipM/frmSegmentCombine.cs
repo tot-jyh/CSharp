@@ -335,5 +335,30 @@ namespace ClipM
             listView1.Items.Insert(targetIndex, clone);
             clone.Selected = true;
         }
+
+        private void listView1_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Delete)
+            {
+                // 리스트뷰 아이템 컬렉션의 인덱스를 뒤에서부터 순회하며 삭제
+                for (int i = listView1.SelectedIndices.Count - 1; i >= 0; i--)
+                {
+                    listView1.Items.RemoveAt(listView1.SelectedIndices[i]);
+                }
+            }
+
+            if ((e.KeyCode == Keys.A) && e.Control)
+            {
+                foreach (ListViewItem item in listView1.Items)
+                {
+                    item.Selected = true;
+                }
+            }
+        }
+
+        private void medtStart_Leave(object sender, EventArgs e)
+        {
+            medtEnd.Text = medtStart.Text;
+        }
     }
 }
