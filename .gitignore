@@ -1,0 +1,12 @@
+# 빌드 결과물 제외
+bin/
+obj/
+
+# 사용자 설정 제외
+.vs/
+*.user
+*.userosscache
+
+# 기타 필요 없는 파일들
+*.tmp
+*.log

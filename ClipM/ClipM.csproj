@@ -1,0 +1,48 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Xabe.FFmpeg" Version="6.0.2" />
+    <PackageReference Include="Xabe.FFmpeg.Downloader" Version="6.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Update="frmMain.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="frmMain.Designer.cs">
+      <DependentUpon>frmMain.cs</DependentUpon>
+    </Compile>
+    <EmbeddedResource Update="frmMain.resx">
+      <DependentUpon>frmMain.cs</DependentUpon>
+    </EmbeddedResource>
+
+    <Compile Update="frmCombine.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="frmCombine.Designer.cs">
+      <DependentUpon>frmCombine.cs</DependentUpon>
+    </Compile>
+    <EmbeddedResource Update="frmCombine.resx">
+      <DependentUpon>frmCombine.cs</DependentUpon>
+    </EmbeddedResource>
+
+    <Compile Update="frmSegmentCombine.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="frmSegmentCombine.Designer.cs">
+      <DependentUpon>frmSegmentCombine.cs</DependentUpon>
+    </Compile>
+    <EmbeddedResource Update="frmSegmentCombine.resx">
+      <DependentUpon>frmSegmentCombine.cs</DependentUpon>
+    </EmbeddedResource>
+  </ItemGroup>
+
+</Project>
