@@ -1,12 +1,54 @@
 # 빌드 결과물 제외
 bin/
 obj/
+Debug/
+Release/
+x64/
+x86/
+[Bb]uild/
 
 # 사용자 설정 제외
 .vs/
+.idea/
 *.user
 *.userosscache
+*.suo
+*.userprefs
+*.DotSettings.user
 
-# 기타 필요 없는 파일들
+# NuGet
+packages/
+*.nupkg
+*.snupkg
+project.lock.json
+project.fragment.lock.json
+
+# 테스트/분석 결과물
+[Tt]est[Rr]esult*/
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.psess
+*.vsp
+*.vspx
+
+# 디버그/캐시 관련 확장자
+*.pdb
+*.ipdb
+*.iobj
+*.cache
+*.sdf
+*.opendb
+*.VC.db
 *.tmp
 *.log
+
+# 실제 소스가 아닌 문서/이미지/도구 파일
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+.codex/
+사양.txt
+AGENTS.md
+check.md
