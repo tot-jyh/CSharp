@@ -72,30 +72,46 @@ public sealed class PandaLiveService
         // HTTP-first: this reuses the shared WebView2's cookies/user-index without an actual
         // page navigation, so a check finishes in well under a second instead of a Navigate()
         // + DevTools round trip. EnsurePandaOriginAsync is a no-op once the WebView2 has ever
-        // visited pandalive, so it stays cheap on every later call - the WebView2 is only ever
-        // driven to a real navigation by the fallback below, which now runs solely when HTTP
-        // fails (a stale/expired session being the common reason), not on every single check.
+        // visited pandalive, so it stays cheap on every later call.
+        string? httpFailureMessage = null;
         try
         {
             await EnsurePandaOriginAsync(webView, cancellationToken);
             var body = await RequestLivePlayByHttpAsync(webView, userId, cancellationToken);
-            return ParseLivePlayResponse(body, userId);
+            var httpStatus = ParseLivePlayResponse(body, userId);
+
+            // pandalive answers an unauthenticated/unverified request with HTTP 200 and a
+            // message like "본인인증이 필요합니다" rather than an error status - no exception
+            // is thrown, so a plain try/catch here would report this as final. The x-device-info
+            // "ui" value this HTTP path relies on is scraped from the WebView2's JS state and is
+            // not always reliably present, whereas the browser-navigation fallback below doesn't
+            // need it at all (the real page makes its own request with its own headers). So a
+            // session-shaped failure here falls through to that fallback too, not just a thrown
+            // exception, to keep the same resilience the browser-first order used to have.
+            if (httpStatus.Success || !PandaMessages.IsSessionRelatedFailure(httpStatus.Message))
+            {
+                return httpStatus;
+            }
+
+            httpFailureMessage = httpStatus.Message;
         }
         catch (Exception httpEx)
         {
-            try
+            httpFailureMessage = httpEx.Message;
+        }
+
+        try
+        {
+            var body = await RequestLivePlayThroughNetworkAsync(webView, userId, cancellationToken);
+            return ParseLivePlayResponse(body, userId);
+        }
+        catch (Exception browserEx)
+        {
+            return new PandaLiveStatus
             {
-                var body = await RequestLivePlayThroughNetworkAsync(webView, userId, cancellationToken);
-                return ParseLivePlayResponse(body, userId);
-            }
-            catch (Exception browserEx)
-            {
-                return new PandaLiveStatus
-                {
-                    Success = false,
-                    Message = $"팬더 확인 실패: HTTP {httpEx.Message}; 브라우저 {browserEx.Message}"
-                };
-            }
+                Success = false,
+                Message = $"팬더 확인 실패: HTTP {httpFailureMessage}; 브라우저 {browserEx.Message}"
+            };
         }
     }
 
