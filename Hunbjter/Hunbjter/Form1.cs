@@ -1350,9 +1350,16 @@
                 await Task.Delay(1000, shutdownCts.Token);
                 if (newSession.Process.HasExited)
                 {
+                    // Read everything off the session before disposing it - Dispose() releases
+                    // the underlying Process, and reading ExitCode/anything else afterward
+                    // throws "No process is associated with this object." instead of reporting
+                    // the actual failure.
+                    var exitCode = newSession.ExitCode;
+                    var errorSummary = newSession.ErrorSummary;
                     newSession.Dispose();
+                    var detail = string.IsNullOrWhiteSpace(errorSummary) ? "" : $" - {errorSummary}";
                     SetStatus("파일 분할 실패: 새 녹화가 바로 종료되었습니다.");
-                    AddLog($"{favorite.DisplayName}: 파일 분할 실패 - 새 ffmpeg가 즉시 종료됨 (코드 {newSession.ExitCode})");
+                    AddLog($"{favorite.DisplayName}: 파일 분할 실패 - 새 ffmpeg가 즉시 종료됨 (코드 {exitCode}){detail}");
                     return;
                 }
 
