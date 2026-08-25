@@ -1347,10 +1347,13 @@
         }
 
         /// <summary>
-        /// Starts a new ffmpeg process against the already-known stream URL and swaps it in for
-        /// the current recording session, so the model's file rolls over without ever calling
-        /// pandalive's live/play API again - unlike "녹화 시작", which always re-registers as a
-        /// watcher and can fail if the room's state changed since the recording began.
+        /// Starts a new ffmpeg process on a freshly-checked stream URL and swaps it in for the
+        /// current recording session, so the file rolls over with no recording gap and no
+        /// separate stop-then-start click. The cached streamUrl from the original check cannot
+        /// be reused here: pandalive's playback tokens (AWS IVS) carry an "aws:single-use-uuid"
+        /// claim and a ~10 minute expiry, so a second ffmpeg against the same URL a moment later
+        /// gets an immediate 403 regardless of timing - a fresh check is required either way,
+        /// same as "녹화 시작" does.
         /// </summary>
         private async Task SplitRecordingAsync(FavoriteItem favorite, WebViewLease lease)
         {
@@ -1371,14 +1374,27 @@
                 }
             }
 
-            if (!favorite.Metadata.TryGetValue("streamUrl", out var streamUrl) || string.IsNullOrWhiteSpace(streamUrl))
+            if (monitorRoster.Find(favorite.Id) is not { } monitor)
             {
-                SetStatus("녹화 URL이 없어 파일을 분할할 수 없습니다.");
+                SetStatus("파일 분할 실패: 모델을 찾을 수 없습니다.");
                 return;
             }
 
             try
             {
+                AddLog($"{favorite.DisplayName}: 파일 분할 전 방송 URL 재확인");
+                await liveStatusProbe.PrepareSessionAsync(lease, "파일 분할 전 세션 준비", shutdownCts.Token);
+                await monitor.RunCheckAsync(CheckTrigger.BeforeRecording, lease, shutdownCts.Token);
+                favoriteStore.Save(favorites);
+
+                if (!favorite.Metadata.TryGetValue("liveStatus", out var liveStatus) || liveStatus != "live"
+                    || !favorite.Metadata.TryGetValue("streamUrl", out var streamUrl) || string.IsNullOrWhiteSpace(streamUrl))
+                {
+                    RefreshFavoriteList();
+                    SetStatus("파일 분할 실패: 방송 URL 확인에 실패했습니다.");
+                    return;
+                }
+
                 var httpContext = await pandaLiveService.GetRecordingHttpContextAsync(lease.WebView, shutdownCts.Token);
                 var newSession = await recordingService.StartAsync(
                     favorite, streamUrl, settings.RecordingDirectory, settings.FfmpegPath, httpContext);
