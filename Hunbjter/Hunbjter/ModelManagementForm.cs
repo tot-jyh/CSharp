@@ -149,8 +149,9 @@ public sealed class ModelManagementForm : ThemedDialog
 
             if (SetFavoriteWatch(favorite, enabledCheckBox.Checked))
             {
+                var idToReselect = favorite.Id;
                 RefreshGrid();
-                ReselectCurrent();
+                ReselectCurrent(idToReselect);
             }
             else
             {
@@ -380,9 +381,10 @@ public sealed class ModelManagementForm : ThemedDialog
             return;
         }
 
+        var idToReselect = favorite.Id;
         SetFavoriteWatch(favorite, !favorite.Enabled);
         RefreshGrid();
-        ReselectCurrent();
+        ReselectCurrent(idToReselect);
     }
 
     private bool TryGetSelectedModel(out FavoriteItem favorite)
@@ -569,23 +571,33 @@ public sealed class ModelManagementForm : ThemedDialog
 
     private void SaveAndRefresh(string message)
     {
+        var idToReselect = selectedFavoriteId;
         favoriteStore.Save(favorites);
         RefreshGrid();
-        ReselectCurrent();
+        ReselectCurrent(idToReselect);
         statusLabel.Text = message;
         FavoritesChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    private void ReselectCurrent()
+    /// <summary>
+    /// Reselects a row after <see cref="RefreshGrid"/>. <c>RefreshGrid</c> calls
+    /// <c>ClearSelection()</c>, which fires <c>SelectionChanged</c> synchronously and runs
+    /// <see cref="LoadSelectedRow"/> while nothing is selected - that wipes
+    /// <see cref="selectedFavoriteId"/> to "" before this method would otherwise read it. So
+    /// every caller must capture the id it wants reselected *before* calling RefreshGrid and
+    /// pass it in here explicitly; falling back to the (by-then-clobbered) field is not safe.
+    /// </summary>
+    private void ReselectCurrent(string? id = null)
     {
-        if (string.IsNullOrWhiteSpace(selectedFavoriteId))
+        var targetId = id ?? selectedFavoriteId;
+        if (string.IsNullOrWhiteSpace(targetId))
         {
             return;
         }
 
         foreach (DataGridViewRow row in modelGrid.Rows)
         {
-            if (row.Tag is string id && id.Equals(selectedFavoriteId, StringComparison.OrdinalIgnoreCase))
+            if (row.Tag is string rowId && rowId.Equals(targetId, StringComparison.OrdinalIgnoreCase))
             {
                 row.Selected = true;
                 modelGrid.CurrentCell = row.Cells[0];

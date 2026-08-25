@@ -59,6 +59,7 @@
             startRecordingMenuItem = new ToolStripMenuItem();
             stopRecordingMenuItem = new ToolStripMenuItem();
             highlightCaptureMenuItem = new ToolStripMenuItem();
+            splitRecordingMenuItem = new ToolStripMenuItem();
             toggleWatchMenuItem = new ToolStripMenuItem();
             deleteFavoriteMenuItem = new ToolStripMenuItem();
             logPanel = new BufferedTableLayoutPanel();
@@ -383,7 +384,7 @@
             // 
             // favoriteContextMenu
             // 
-            favoriteContextMenu.Items.AddRange(new ToolStripItem[] { checkLiveMenuItem, startRecordingMenuItem, stopRecordingMenuItem, highlightCaptureMenuItem, toggleWatchMenuItem, deleteFavoriteMenuItem });
+            favoriteContextMenu.Items.AddRange(new ToolStripItem[] { checkLiveMenuItem, startRecordingMenuItem, stopRecordingMenuItem, highlightCaptureMenuItem, splitRecordingMenuItem, toggleWatchMenuItem, deleteFavoriteMenuItem });
             favoriteContextMenu.Name = "favoriteContextMenu";
             favoriteContextMenu.Size = new Size(129, 136);
             favoriteContextMenu.Opening += favoriteContextMenu_Opening;
@@ -415,7 +416,14 @@
             highlightCaptureMenuItem.Size = new Size(128, 22);
             highlightCaptureMenuItem.Text = "순간캡쳐";
             highlightCaptureMenuItem.Click += highlightCaptureMenuItem_Click;
-            // 
+            //
+            // splitRecordingMenuItem
+            //
+            splitRecordingMenuItem.Name = "splitRecordingMenuItem";
+            splitRecordingMenuItem.Size = new Size(128, 22);
+            splitRecordingMenuItem.Text = "파일 분할";
+            splitRecordingMenuItem.Click += splitRecordingMenuItem_Click;
+            //
             // toggleWatchMenuItem
             // 
             toggleWatchMenuItem.Name = "toggleWatchMenuItem";
@@ -577,6 +585,7 @@
         private ToolStripMenuItem startRecordingMenuItem;
         private ToolStripMenuItem stopRecordingMenuItem;
         private ToolStripMenuItem highlightCaptureMenuItem;
+        private ToolStripMenuItem splitRecordingMenuItem;
         private ToolStripMenuItem toggleWatchMenuItem;
         private ToolStripMenuItem deleteFavoriteMenuItem;
         private BufferedTableLayoutPanel logPanel;

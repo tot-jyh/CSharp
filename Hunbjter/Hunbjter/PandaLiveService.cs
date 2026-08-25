@@ -67,26 +67,33 @@ public sealed class PandaLiveService
         }
 
         userId = userId.Trim();
+        await WebViewProfile.EnsureCoreAsync(webView);
+
+        // HTTP-first: this reuses the shared WebView2's cookies/user-index without an actual
+        // page navigation, so a check finishes in well under a second instead of a Navigate()
+        // + DevTools round trip. EnsurePandaOriginAsync is a no-op once the WebView2 has ever
+        // visited pandalive, so it stays cheap on every later call - the WebView2 is only ever
+        // driven to a real navigation by the fallback below, which now runs solely when HTTP
+        // fails (a stale/expired session being the common reason), not on every single check.
         try
         {
-            await WebViewProfile.EnsureCoreAsync(webView);
-            var body = await RequestLivePlayThroughNetworkAsync(webView, userId, cancellationToken);
+            await EnsurePandaOriginAsync(webView, cancellationToken);
+            var body = await RequestLivePlayByHttpAsync(webView, userId, cancellationToken);
             return ParseLivePlayResponse(body, userId);
         }
-        catch (Exception browserEx)
+        catch (Exception httpEx)
         {
             try
             {
-                await EnsurePandaOriginAsync(webView, cancellationToken);
-                var body = await RequestLivePlayByHttpAsync(webView, userId, cancellationToken);
+                var body = await RequestLivePlayThroughNetworkAsync(webView, userId, cancellationToken);
                 return ParseLivePlayResponse(body, userId);
             }
-            catch (Exception httpEx)
+            catch (Exception browserEx)
             {
                 return new PandaLiveStatus
                 {
                     Success = false,
-                    Message = $"팬더 확인 실패: 브라우저 {browserEx.Message}; HTTP {httpEx.Message}"
+                    Message = $"팬더 확인 실패: HTTP {httpEx.Message}; 브라우저 {browserEx.Message}"
                 };
             }
         }

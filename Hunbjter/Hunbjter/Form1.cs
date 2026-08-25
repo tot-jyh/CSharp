@@ -885,6 +885,15 @@
             }
         }
 
+        private async void splitRecordingMenuItem_Click(object? sender, EventArgs e)
+        {
+            if (TryGetSelectedFavorite(out var favorite))
+            {
+                using var lease = await webViewGate.AcquireAsync(GatePriority.Manual, shutdownCts.Token);
+                await SplitRecordingAsync(favorite, lease);
+            }
+        }
+
         private void toggleWatchMenuItem_Click(object? sender, EventArgs e)
         {
             if (TryGetSelectedFavorite(out var favorite))
@@ -949,6 +958,7 @@
             startRecordingMenuItem.Enabled = isLive && !isRecording && favorite.Enabled;
             stopRecordingMenuItem.Enabled = isRecording;
             highlightCaptureMenuItem.Enabled = isRecording;
+            splitRecordingMenuItem.Enabled = isRecording;
             toggleWatchMenuItem.Text = favorite.Enabled ? "Watch Off" : "Watch On";
             toggleWatchMenuItem.Enabled = !isRecording || !favorite.Enabled;
             deleteFavoriteMenuItem.Enabled = !isRecording;
@@ -1297,6 +1307,82 @@
             {
                 SetStatus($"하이라이트 캡쳐 실패: {ex.Message}");
                 AddLog($"{favorite.DisplayName}: 하이라이트 캡쳐 실패 - {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Starts a new ffmpeg process against the already-known stream URL and swaps it in for
+        /// the current recording session, so the model's file rolls over without ever calling
+        /// pandalive's live/play API again - unlike "녹화 시작", which always re-registers as a
+        /// watcher and can fail if the room's state changed since the recording began.
+        /// </summary>
+        private async Task SplitRecordingAsync(FavoriteItem favorite, WebViewLease lease)
+        {
+            if (!recordingSessions.TryGetValue(favorite.Id, out var oldSession))
+            {
+                SetStatus("녹화중인 모델만 파일을 분할할 수 있습니다.");
+                AddLog($"{favorite.DisplayName}: 녹화중이 아니어서 파일 분할을 건너뜁니다.");
+                return;
+            }
+
+            settings = settingsStore.Load();
+            if (!IsRecordingEnvironmentValid())
+            {
+                SetStatus("파일 분할 전 환경설정이 필요합니다.");
+                if (!ShowEnvironmentSettings() || !IsRecordingEnvironmentValid())
+                {
+                    return;
+                }
+            }
+
+            if (!favorite.Metadata.TryGetValue("streamUrl", out var streamUrl) || string.IsNullOrWhiteSpace(streamUrl))
+            {
+                SetStatus("녹화 URL이 없어 파일을 분할할 수 없습니다.");
+                return;
+            }
+
+            try
+            {
+                var httpContext = await pandaLiveService.GetRecordingHttpContextAsync(lease.WebView, shutdownCts.Token);
+                var newSession = await recordingService.StartAsync(
+                    favorite, streamUrl, settings.RecordingDirectory, settings.FfmpegPath, httpContext);
+
+                await Task.Delay(1000, shutdownCts.Token);
+                if (newSession.Process.HasExited)
+                {
+                    newSession.Dispose();
+                    SetStatus("파일 분할 실패: 새 녹화가 바로 종료되었습니다.");
+                    AddLog($"{favorite.DisplayName}: 파일 분할 실패 - 새 ffmpeg가 즉시 종료됨 (코드 {newSession.ExitCode})");
+                    return;
+                }
+
+                // Swap the dictionary to the new session before stopping the old one. The
+                // ReferenceEquals guard in RecordingExited then sees the old process is no
+                // longer "active" once it exits below, so it skips the normal exit handling
+                // (no spurious "녹화 종료" log, no offline recheck) for what is really just a
+                // planned handoff, not the model actually going offline.
+                recordingSessions[favorite.Id] = newSession;
+                newSession.Process.Exited += (_, _) => QueueRecordingExited(favorite, newSession);
+                if (newSession.Process.HasExited)
+                {
+                    QueueRecordingExited(favorite, newSession);
+                }
+
+                favorite.Metadata["recordingPath"] = newSession.OutputPath;
+                favorite.UpdatedAt = DateTimeOffset.Now;
+                favoriteStore.Save(favorites);
+                RefreshFavoriteList();
+
+                oldSession.Stop();
+                oldSession.Dispose();
+
+                SetStatus("녹화 파일을 분할했습니다.");
+                AddLog($"{favorite.DisplayName}: 파일 분할 - {oldSession.OutputPath} → {newSession.OutputPath}");
+            }
+            catch (Exception ex)
+            {
+                SetStatus($"파일 분할 실패: {ex.Message}");
+                AddLog($"{favorite.DisplayName}: 파일 분할 실패 - {ex.Message}");
             }
         }
 
