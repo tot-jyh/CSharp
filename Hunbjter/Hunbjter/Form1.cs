@@ -527,23 +527,8 @@
                 monitorRoster.Sync(favorites);
 
                 // A (re)login just happened here, or was at least attempted - any model stuck
-                // showing a session-related failure ("로그인 체크") is worth an immediate
-                // recheck rather than waiting out FailureBackoffRule's backoff, which after
-                // repeated failures can stretch out to 30 minutes. If the login didn't actually
-                // fix anything, this just costs one extra check.
-                foreach (var favorite in favorites.Items)
-                {
-                    if (!favorite.Enabled)
-                    {
-                        continue;
-                    }
-
-                    var message = favorite.Metadata.TryGetValue("liveMessage", out var liveMessage) ? liveMessage : "";
-                    if (PandaMessages.IsSessionRelatedFailure(message) && monitorRoster.Find(favorite.Id) is { } monitor)
-                    {
-                        monitor.RequestImmediate("사이트 설정 변경 후 재확인");
-                    }
-                }
+                // on a session-related failure is worth an immediate recheck.
+                RequestImmediateRecheckForStaleFavorites("사이트 설정 변경 후 재확인");
 
                 if (result == DialogResult.OK)
                 {
@@ -578,6 +563,11 @@
 
                 LoadFavorites(resetRuntimeState: false);
                 monitorRoster.Sync(favorites);
+
+                // A model just flipped to watch-on here goes through ModelManagementForm's own
+                // SetFavoriteWatch, not Form1.ToggleWatch, so it never got a RequestImmediate
+                // nudge (ModelManagementForm has no reference to monitorRoster to call it with).
+                RequestImmediateRecheckForStaleFavorites("모델관리 변경 후 재확인");
             }
             finally
             {
@@ -585,6 +575,33 @@
             }
 
             await Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// Forces an immediate recheck for any watched model that either has no live status yet
+        /// (freshly enabled, e.g. via a watch toggle) or is stuck on a session-related failure
+        /// ("로그인 체크") - both would otherwise sit until FailureBackoffRule's backoff elapses
+        /// (up to 30 minutes) or the model's normal interval comes due, even though whatever
+        /// caused the wait (a fresh watch-on, a fresh login) just happened.
+        /// </summary>
+        private void RequestImmediateRecheckForStaleFavorites(string reason)
+        {
+            foreach (var favorite in favorites.Items)
+            {
+                if (!favorite.Enabled)
+                {
+                    continue;
+                }
+
+                var hasStatus = favorite.Metadata.ContainsKey("liveStatus");
+                var message = favorite.Metadata.TryGetValue("liveMessage", out var liveMessage) ? liveMessage : "";
+                var needsRecheck = !hasStatus || PandaMessages.IsSessionRelatedFailure(message);
+
+                if (needsRecheck && monitorRoster.Find(favorite.Id) is { } monitor)
+                {
+                    monitor.RequestImmediate(reason);
+                }
+            }
         }
 
         private bool ShowEnvironmentSettings()

@@ -415,6 +415,16 @@ public sealed class ModelManagementForm : ThemedDialog
         }
 
         favorite.Enabled = watch;
+        if (watch)
+        {
+            // Stale status would otherwise linger (and even show as a live failure message)
+            // until the next scheduled check - matches Form1.ToggleWatch's grid-badge path.
+            foreach (var key in new[] { "liveStatus", "liveMessage", "streamUrl", "resolution" })
+            {
+                favorite.Metadata.Remove(key);
+            }
+        }
+
         favorite.UpdatedAt = DateTimeOffset.Now;
         selectedFavoriteId = favorite.Id;
         favoriteStore.Save(favorites);
