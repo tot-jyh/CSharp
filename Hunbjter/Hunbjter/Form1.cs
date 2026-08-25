@@ -526,6 +526,25 @@
                 LoadFavorites(resetRuntimeState: false);
                 monitorRoster.Sync(favorites);
 
+                // A (re)login just happened here, or was at least attempted - any model stuck
+                // showing a session-related failure ("로그인 체크") is worth an immediate
+                // recheck rather than waiting out FailureBackoffRule's backoff, which after
+                // repeated failures can stretch out to 30 minutes. If the login didn't actually
+                // fix anything, this just costs one extra check.
+                foreach (var favorite in favorites.Items)
+                {
+                    if (!favorite.Enabled)
+                    {
+                        continue;
+                    }
+
+                    var message = favorite.Metadata.TryGetValue("liveMessage", out var liveMessage) ? liveMessage : "";
+                    if (PandaMessages.IsSessionRelatedFailure(message) && monitorRoster.Find(favorite.Id) is { } monitor)
+                    {
+                        monitor.RequestImmediate("사이트 설정 변경 후 재확인");
+                    }
+                }
+
                 if (result == DialogResult.OK)
                 {
                     SetStatus("사이트 설정을 반영했습니다.");
