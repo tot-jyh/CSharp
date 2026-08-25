@@ -1,50 +1,24 @@
 ﻿using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
 
 namespace Hunbjter;
 
 public sealed class LoginSettingsStore
 {
-    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+    private readonly string settingsPath = JsonFileStore.ResolvePath("login-settings.json");
 
-    private readonly string settingsPath;
-
-    public LoginSettingsStore()
-    {
-        settingsPath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "Hunbjter",
-            "login-settings.json");
-    }
+    public string? LastLoadFailure { get; private set; }
 
     public LoginSettings Load()
     {
-        if (!File.Exists(settingsPath))
-        {
-            return new LoginSettings();
-        }
-
-        try
-        {
-            var json = File.ReadAllText(settingsPath);
-            return JsonSerializer.Deserialize<LoginSettings>(json) ?? new LoginSettings();
-        }
-        catch
-        {
-            return new LoginSettings();
-        }
+        var settings = JsonFileStore.Load(settingsPath, static () => new LoginSettings(), out var failure);
+        LastLoadFailure = failure;
+        return settings;
     }
 
     public void Save(LoginSettings settings)
     {
-        var directory = Path.GetDirectoryName(settingsPath);
-        if (!string.IsNullOrWhiteSpace(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
-
-        File.WriteAllText(settingsPath, JsonSerializer.Serialize(settings, JsonOptions));
+        JsonFileStore.Save(settingsPath, settings);
     }
 
     public static string ProtectPassword(string password)

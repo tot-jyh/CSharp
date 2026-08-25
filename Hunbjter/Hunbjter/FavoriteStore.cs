@@ -1,47 +1,24 @@
-using System.Text.Json;
-
-namespace Hunbjter;
+﻿namespace Hunbjter;
 
 public sealed class FavoriteStore
 {
-    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+    private readonly string favoritesPath = JsonFileStore.ResolvePath("favorites.json");
 
-    private readonly string favoritesPath;
-
-    public FavoriteStore()
-    {
-        favoritesPath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "Hunbjter",
-            "favorites.json");
-    }
+    /// <summary>
+    /// Set when the last <see cref="Load"/> found an unreadable file. Callers surface this to
+    /// the log so a corrupted roster is visible rather than looking like an empty one.
+    /// </summary>
+    public string? LastLoadFailure { get; private set; }
 
     public FavoritesDocument Load()
     {
-        if (!File.Exists(favoritesPath))
-        {
-            return new FavoritesDocument();
-        }
-
-        try
-        {
-            var json = File.ReadAllText(favoritesPath);
-            return JsonSerializer.Deserialize<FavoritesDocument>(json) ?? new FavoritesDocument();
-        }
-        catch
-        {
-            return new FavoritesDocument();
-        }
+        var document = JsonFileStore.Load(favoritesPath, static () => new FavoritesDocument(), out var failure);
+        LastLoadFailure = failure;
+        return document;
     }
 
     public void Save(FavoritesDocument document)
     {
-        var directory = Path.GetDirectoryName(favoritesPath);
-        if (!string.IsNullOrWhiteSpace(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
-
-        File.WriteAllText(favoritesPath, JsonSerializer.Serialize(document, JsonOptions));
+        JsonFileStore.Save(favoritesPath, document);
     }
 }

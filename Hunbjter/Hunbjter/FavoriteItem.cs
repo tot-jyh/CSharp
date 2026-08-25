@@ -1,4 +1,4 @@
-namespace Hunbjter;
+﻿namespace Hunbjter;
 
 public sealed class FavoriteItem
 {
@@ -19,6 +19,12 @@ public sealed class FavoriteItem
     public List<string> Tags { get; set; } = [];
 
     public bool Enabled { get; set; } = true;
+
+    /// <summary>
+    /// Per-model check interval. Null means "use the interval from 환경설정".
+    /// Additive only: older favorites.json files simply leave this null.
+    /// </summary>
+    public int? CheckIntervalSeconds { get; set; }
 
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.Now;
 

@@ -1,23 +1,27 @@
-namespace Hunbjter;
+﻿namespace Hunbjter;
 
-public sealed class ModelManagementForm : Form
+public sealed class ModelManagementForm : ThemedDialog
 {
+    private const int WatchColumnIndex = 0;
+
     private readonly SiteSettingsStore siteSettingsStore;
     private readonly FavoriteStore favoriteStore;
     private readonly HashSet<string> recordingFavoriteIds;
-    private readonly DataGridView modelGrid = new();
-    private readonly ComboBox siteComboBox = new();
-    private readonly TextBox nicknameTextBox = new();
-    private readonly TextBox userIdTextBox = new();
-    private readonly TextBox urlTextBox = new();
-    private readonly TextBox memoTextBox = new();
-    private readonly TextBox broadcastStartTextBox = new();
-    private readonly TextBox broadcastEndTextBox = new();
-    private readonly CheckBox enabledCheckBox = new();
-    private readonly Button addButton = new();
-    private readonly Button updateButton = new();
-    private readonly Button deleteButton = new();
-    private readonly Button closeButton = new();
+    private readonly ThemedGrid modelGrid = new();
+    private readonly ThemedComboBox siteComboBox = new();
+    private readonly ThemedTextBox nicknameTextBox = new();
+    private readonly ThemedTextBox userIdTextBox = new();
+    private readonly ThemedTextBox urlTextBox = new();
+    private readonly ThemedTextBox memoTextBox = new();
+    private readonly ThemedTextBox broadcastStartTextBox = new();
+    private readonly ThemedTextBox broadcastEndTextBox = new();
+    private readonly ThemedCheckBox enabledCheckBox = new();
+    private readonly ThemedNumeric checkIntervalInput =
+        ThemedDialog.CreateNumeric(0, ModelMonitor.MaximumIntervalSeconds, 10);
+    private readonly ThemedButton addButton = new();
+    private readonly ThemedButton updateButton = new();
+    private readonly ThemedButton deleteButton = new();
+    private readonly ThemedButton closeButton = new();
     private readonly Label statusLabel = new();
     private readonly ContextMenuStrip modelContextMenu = new();
     private readonly ToolStripMenuItem toggleWatchMenuItem = new();
@@ -47,78 +51,73 @@ public sealed class ModelManagementForm : Form
 
     private void InitializeComponent()
     {
-        Text = "\uBAA8\uB378\uAD00\uB9AC";
-        StartPosition = FormStartPosition.CenterParent;
-        Size = new Size(980, 640);
-        MinimumSize = new Size(860, 560);
+        Text = "모델관리";
+        Size = new Size(1020, 744);
+        MinimumSize = new Size(880, 620);
 
-        var root = new TableLayoutPanel
+        var root = new BufferedTableLayoutPanel
         {
+            BackColor = Theme.Background,
             ColumnCount = 1,
             Dock = DockStyle.Fill,
-            Padding = new Padding(16),
+            Padding = new Padding(18),
             RowCount = 4
         };
+        // Without an explicit column style the single column falls back to AutoSize and the
+        // grid collapses to its preferred size instead of filling the dialog.
+        root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 204F));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 38F));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 216F));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 30F));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 40F));
 
-        modelGrid.AllowUserToAddRows = false;
-        modelGrid.AllowUserToDeleteRows = false;
-        modelGrid.AllowUserToResizeRows = false;
         modelGrid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
-        modelGrid.BackgroundColor = Color.White;
         modelGrid.Dock = DockStyle.Fill;
-        modelGrid.MultiSelect = false;
-        modelGrid.ReadOnly = false;
-        modelGrid.RowHeadersVisible = false;
-        modelGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-        modelGrid.Columns.Add(new DataGridViewCheckBoxColumn { HeaderText = "Watch", FillWeight = 45, Name = "Enabled", ReadOnly = false });
-        modelGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "\uC0AC\uC774\uD2B8", FillWeight = 80, Name = "Platform", ReadOnly = true });
-        modelGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "\uB2C9\uB124\uC784", FillWeight = 100, Name = "DisplayName", ReadOnly = true });
-        modelGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "\uC544\uC774\uB514", FillWeight = 110, Name = "PlatformUserId", ReadOnly = true });
+        modelGrid.RowTemplate.Height = 38;
+        modelGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "감시", FillWeight = 46, Name = "Enabled", ReadOnly = true });
+        modelGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "사이트", FillWeight = 74, Name = "Platform", ReadOnly = true });
+        modelGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "닉네임", FillWeight = 100, Name = "DisplayName", ReadOnly = true });
+        modelGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "아이디", FillWeight = 110, Name = "PlatformUserId", ReadOnly = true });
         modelGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "URL", FillWeight = 190, Name = "ProfileUrl", ReadOnly = true });
-        modelGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "\uBC29\uC1A1\uC2DC\uAC04", FillWeight = 120, Name = "BroadcastTime", ReadOnly = true });
-        modelGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "\uBA54\uBAA8", FillWeight = 130, Name = "Memo", ReadOnly = true });
+        modelGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "방송시간", FillWeight = 120, Name = "BroadcastTime", ReadOnly = true });
+        modelGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "메모", FillWeight = 130, Name = "Memo", ReadOnly = true });
+        modelGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "확인 주기", FillWeight = 70, Name = "CheckInterval", ReadOnly = true });
+        modelGrid.Columns[2].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleLeft;
+        modelGrid.Columns[4].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleLeft;
+        modelGrid.Columns[4].DefaultCellStyle.ForeColor = Theme.TextMuted;
+        modelGrid.Columns[4].DefaultCellStyle.Font = Theme.Small;
+        modelGrid.Columns[6].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleLeft;
         modelGrid.SelectionChanged += (_, _) => LoadSelectedRow();
         modelGrid.CellMouseDown += modelGrid_CellMouseDown;
-        modelGrid.CurrentCellDirtyStateChanged += (_, _) =>
-        {
-            if (modelGrid.IsCurrentCellDirty)
-            {
-                modelGrid.CommitEdit(DataGridViewDataErrorContexts.Commit);
-            }
-        };
-        modelGrid.CellValueChanged += modelGrid_CellValueChanged;
+        modelGrid.CellClick += modelGrid_CellClick;
+        modelGrid.CellPainting += modelGrid_CellPainting;
         modelGrid.ContextMenuStrip = modelContextMenu;
 
         toggleWatchMenuItem.Click += (_, _) => ToggleSelectedWatchFromMenu();
         modelContextMenu.Items.Add(toggleWatchMenuItem);
         modelContextMenu.Opening += modelContextMenu_Opening;
+        ThemedMenuRenderer.Apply(modelContextMenu);
 
-        var editor = new TableLayoutPanel
+        var editor = new BufferedTableLayoutPanel
         {
             ColumnCount = 4,
             Dock = DockStyle.Fill,
-            Margin = new Padding(0, 10, 0, 4),
+            Margin = new Padding(0, 12, 0, 4),
             RowCount = 3
         };
         editor.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 22F));
         editor.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 22F));
         editor.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 22F));
         editor.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 34F));
-        editor.RowStyles.Add(new RowStyle(SizeType.Absolute, 62F));
-        editor.RowStyles.Add(new RowStyle(SizeType.Absolute, 62F));
-        editor.RowStyles.Add(new RowStyle(SizeType.Absolute, 62F));
+        editor.RowStyles.Add(new RowStyle(SizeType.Absolute, 64F));
+        editor.RowStyles.Add(new RowStyle(SizeType.Absolute, 64F));
+        // A bit taller than the rows above it: the extra top margin below gives "확인 주기" clear
+        // air between it and the 감시 checkbox directly above, so it reads as its own final
+        // section rather than something stacked onto the watch toggle.
+        editor.RowStyles.Add(new RowStyle(SizeType.Absolute, 72F));
 
-        siteComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
-        siteComboBox.Dock = DockStyle.Fill;
         siteComboBox.SelectedIndexChanged += (_, _) => UpdateUrlFromUserIdIfAutomatic();
-        nicknameTextBox.Dock = DockStyle.Fill;
-        userIdTextBox.Dock = DockStyle.Fill;
         userIdTextBox.TextChanged += (_, _) => UpdateUrlFromUserIdIfAutomatic();
-        urlTextBox.Dock = DockStyle.Fill;
         urlTextBox.TextChanged += (_, _) =>
         {
             if (!loadingEditor && !updatingUrlFromUserId)
@@ -126,42 +125,76 @@ public sealed class ModelManagementForm : Form
                 urlEditedManually = true;
             }
         };
-        memoTextBox.Dock = DockStyle.Fill;
-        broadcastStartTextBox.Dock = DockStyle.Fill;
-        broadcastEndTextBox.Dock = DockStyle.Fill;
-        enabledCheckBox.Checked = true;
-        enabledCheckBox.Text = "Watch";
-        enabledCheckBox.AutoSize = true;
-        enabledCheckBox.Anchor = AnchorStyles.Left;
 
-        var memoPanel = CreateFieldPanel("\uBA54\uBAA8", memoTextBox);
-        editor.Controls.Add(CreateFieldPanel("\uC0AC\uC774\uD2B8", siteComboBox), 0, 0);
-        editor.Controls.Add(CreateFieldPanel("\uB2C9\uB124\uC784", nicknameTextBox), 1, 0);
-        editor.Controls.Add(CreateFieldPanel("\uC544\uC774\uB514", userIdTextBox), 2, 0);
+        enabledCheckBox.Checked = true;
+        enabledCheckBox.Text = "감시 켜기";
+        enabledCheckBox.Dock = DockStyle.Fill;
+        // No separate caption above this one - the checkbox's own text already labels it, so a
+        // stacked "감시" label (like every other field gets via CreateFieldPanel) would just be a
+        // second, redundant line. The top margin instead lines the checkbox up roughly where the
+        // other fields' inputs sit below their caption row.
+        enabledCheckBox.Margin = new Padding(0, 22, 10, 0);
+        enabledCheckBox.CheckedChanged += (_, _) =>
+        {
+            if (loadingEditor || string.IsNullOrWhiteSpace(selectedFavoriteId))
+            {
+                return;
+            }
+
+            var favorite = FindFavorite(selectedFavoriteId);
+            if (favorite is null || favorite.Enabled == enabledCheckBox.Checked)
+            {
+                return;
+            }
+
+            if (SetFavoriteWatch(favorite, enabledCheckBox.Checked))
+            {
+                RefreshGrid();
+                ReselectCurrent();
+            }
+            else
+            {
+                // Denied (e.g. currently recording) - put the box back without re-entering
+                // this handler via the loadingEditor guard above.
+                loadingEditor = true;
+                enabledCheckBox.Checked = favorite.Enabled;
+                loadingEditor = false;
+            }
+        };
+
+        editor.Controls.Add(CreateFieldPanel("사이트", siteComboBox), 0, 0);
+        editor.Controls.Add(CreateFieldPanel("닉네임", nicknameTextBox), 1, 0);
+        editor.Controls.Add(CreateFieldPanel("아이디", userIdTextBox), 2, 0);
         editor.Controls.Add(CreateFieldPanel("URL", urlTextBox), 3, 0);
-        editor.Controls.Add(CreateFieldPanel("Watch", enabledCheckBox), 0, 1);
-        editor.Controls.Add(CreateFieldPanel("\uC2DC\uC791\uC2DC\uAC04", broadcastStartTextBox), 1, 1);
-        editor.Controls.Add(CreateFieldPanel("\uC885\uB8CC\uC2DC\uAC04", broadcastEndTextBox), 2, 1);
-        editor.Controls.Add(memoPanel, 3, 1);
+        editor.Controls.Add(enabledCheckBox, 0, 1);
+        editor.Controls.Add(CreateFieldPanel("시작시간", broadcastStartTextBox), 1, 1);
+        editor.Controls.Add(CreateFieldPanel("종료시간", broadcastEndTextBox), 2, 1);
+        editor.Controls.Add(CreateFieldPanel("메모", memoTextBox), 3, 1);
+        var checkIntervalPanel = CreateFieldPanel("확인 주기(초, 0=전역값)", checkIntervalInput);
+        checkIntervalPanel.Margin = new Padding(0, 8, 10, 0);
+        editor.Controls.Add(checkIntervalPanel, 0, 2);
+
+        var checkIntervalHint = CreateLabel(
+            "모델마다 방송 확인 간격을 다르게 줄 수 있습니다. 0이면 환경설정의 값을 그대로 씁니다.", Theme.Small, Theme.TextMuted);
+        checkIntervalHint.Margin = new Padding(3, 8, 3, 0);
+        editor.Controls.Add(checkIntervalHint, 1, 2);
+        editor.SetColumnSpan(editor.Controls[editor.Controls.Count - 1], 3);
 
         var actionPanel = new FlowLayoutPanel
         {
             Anchor = AnchorStyles.Right,
             AutoSize = true,
+            BackColor = Color.Transparent,
             FlowDirection = FlowDirection.LeftToRight
         };
 
-        addButton.Text = "\uCD94\uAC00";
-        addButton.Size = new Size(82, 28);
+        ConfigureActionButton(addButton, "추가", ButtonVariant.Primary);
+        ConfigureActionButton(updateButton, "수정", ButtonVariant.Secondary);
+        ConfigureActionButton(deleteButton, "삭제", ButtonVariant.Danger);
+        ConfigureActionButton(closeButton, "닫기", ButtonVariant.Ghost);
         addButton.Click += (_, _) => AddModel();
-        updateButton.Text = "\uC218\uC815";
-        updateButton.Size = new Size(82, 28);
         updateButton.Click += (_, _) => UpdateModel();
-        deleteButton.Text = "\uC0AD\uC81C";
-        deleteButton.Size = new Size(82, 28);
         deleteButton.Click += (_, _) => DeleteModel();
-        closeButton.Text = "\uB2EB\uAE30";
-        closeButton.Size = new Size(82, 28);
         closeButton.Click += (_, _) => Close();
 
         actionPanel.Controls.Add(addButton);
@@ -170,7 +203,9 @@ public sealed class ModelManagementForm : Form
         actionPanel.Controls.Add(closeButton);
 
         statusLabel.AutoEllipsis = true;
+        statusLabel.BackColor = Color.Transparent;
         statusLabel.Dock = DockStyle.Fill;
+        statusLabel.ForeColor = Theme.TextSecondary;
         statusLabel.TextAlign = ContentAlignment.MiddleLeft;
 
         root.Controls.Add(modelGrid, 0, 0);
@@ -180,6 +215,14 @@ public sealed class ModelManagementForm : Form
         Controls.Add(root);
     }
 
+    private static void ConfigureActionButton(ThemedButton button, string text, ButtonVariant variant)
+    {
+        button.Margin = new Padding(8, 0, 0, 0);
+        button.Size = new Size(88, 32);
+        button.Text = text;
+        button.Variant = variant;
+    }
+
     private void LoadData()
     {
         sites = siteSettingsStore.Load();
@@ -187,7 +230,7 @@ public sealed class ModelManagementForm : Form
         {
             sites.Sites.Add(new SiteProfile
             {
-                Name = "\uD32C\uB354",
+                Name = "팬더",
                 LoginUrl = "https://www.pandalive.co.kr/"
             });
         }
@@ -207,17 +250,70 @@ public sealed class ModelManagementForm : Form
         foreach (var favorite in favorites.Items.OrderBy(item => item.DisplayName))
         {
             var rowIndex = modelGrid.Rows.Add(
-                favorite.Enabled,
+                favorite.Enabled ? "ON" : "OFF",
                 favorite.Platform,
                 favorite.DisplayName,
                 favorite.PlatformUserId,
                 favorite.ProfileUrl,
                 FormatBroadcastTime(favorite),
-                favorite.Memo);
+                favorite.Memo,
+                FormatCheckInterval(favorite));
             modelGrid.Rows[rowIndex].Tag = favorite.Id;
         }
 
+        modelGrid.CurrentCell = null;
+        modelGrid.ClearSelection();
         refreshingGrid = false;
+    }
+
+    private void modelGrid_CellPainting(object? sender, DataGridViewCellPaintingEventArgs e)
+    {
+        if (e.Graphics is null || e.RowIndex < 0 || e.ColumnIndex != WatchColumnIndex)
+        {
+            return;
+        }
+
+        if (modelGrid.Rows[e.RowIndex].Tag is not string id)
+        {
+            return;
+        }
+
+        var favorite = FindFavorite(id);
+        GridRenderers.PaintWatchBadge(e, favorite?.Enabled ?? false, hovered: false);
+    }
+
+    /// <summary>
+    /// The watch column is a badge rather than a check box: the system check box renders
+    /// light regardless of the palette, and clicking the cell reads the same.
+    /// </summary>
+    private void modelGrid_CellClick(object? sender, DataGridViewCellEventArgs e)
+    {
+        if (refreshingGrid || e.RowIndex < 0 || e.ColumnIndex != WatchColumnIndex)
+        {
+            return;
+        }
+
+        if (modelGrid.Rows[e.RowIndex].Tag is not string id)
+        {
+            return;
+        }
+
+        var favorite = FindFavorite(id);
+        if (favorite is null)
+        {
+            return;
+        }
+
+        if (SetFavoriteWatch(favorite, !favorite.Enabled))
+        {
+            modelGrid.Rows[e.RowIndex].Cells[WatchColumnIndex].Value = favorite.Enabled ? "ON" : "OFF";
+            modelGrid.InvalidateCell(WatchColumnIndex, e.RowIndex);
+        }
+    }
+
+    private FavoriteItem? FindFavorite(string id)
+    {
+        return favorites.Items.FirstOrDefault(item => item.Id.Equals(id, StringComparison.OrdinalIgnoreCase));
     }
 
     private void LoadSelectedRow()
@@ -229,7 +325,7 @@ public sealed class ModelManagementForm : Form
             return;
         }
 
-        var favorite = favorites.Items.FirstOrDefault(item => item.Id.Equals(id, StringComparison.OrdinalIgnoreCase));
+        var favorite = FindFavorite(id);
         if (favorite is null)
         {
             selectedFavoriteId = "";
@@ -245,42 +341,12 @@ public sealed class ModelManagementForm : Form
         memoTextBox.Text = favorite.Memo;
         broadcastStartTextBox.Text = GetMetadata(favorite, "broadcastStartTime");
         broadcastEndTextBox.Text = GetMetadata(favorite, "broadcastEndTime");
+        checkIntervalInput.Value = Math.Clamp(
+            favorite.CheckIntervalSeconds ?? 0, 0, ModelMonitor.MaximumIntervalSeconds);
         enabledCheckBox.Checked = favorite.Enabled;
         urlEditedManually = !IsDefaultProfileUrl(favorite.ProfileUrl, siteComboBox.SelectedItem as SiteProfile, favorite.PlatformUserId);
         loadingEditor = false;
         UpdateButtonStates();
-    }
-
-    private void modelGrid_CellValueChanged(object? sender, DataGridViewCellEventArgs e)
-    {
-        if (refreshingGrid || e.RowIndex < 0 || modelGrid.Columns[e.ColumnIndex].Name != "Enabled")
-        {
-            return;
-        }
-
-        if (modelGrid.Rows[e.RowIndex].Tag is not string id)
-        {
-            return;
-        }
-
-        var favorite = favorites.Items.FirstOrDefault(item => item.Id.Equals(id, StringComparison.OrdinalIgnoreCase));
-        if (favorite is null)
-        {
-            return;
-        }
-
-        var watch = Convert.ToBoolean(modelGrid.Rows[e.RowIndex].Cells[e.ColumnIndex].Value);
-        if (!watch && recordingFavoriteIds.Contains(favorite.Id))
-        {
-            statusLabel.Text = "\uB179\uD654\uC911\uC778 \uBAA8\uB378\uC740 Watch\uB97C Off\uB85C \uBCC0\uACBD\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.";
-            modelGrid.Rows[e.RowIndex].Cells[e.ColumnIndex].Value = true;
-            return;
-        }
-
-        if (!SetFavoriteWatch(favorite, watch))
-        {
-            modelGrid.Rows[e.RowIndex].Cells[e.ColumnIndex].Value = favorite.Enabled;
-        }
     }
 
     private void modelGrid_CellMouseDown(object? sender, DataGridViewCellMouseEventArgs e)
@@ -328,7 +394,7 @@ public sealed class ModelManagementForm : Form
             return false;
         }
 
-        var selected = favorites.Items.FirstOrDefault(item => item.Id.Equals(id, StringComparison.OrdinalIgnoreCase));
+        var selected = FindFavorite(id);
         if (selected is null)
         {
             return false;
@@ -342,7 +408,7 @@ public sealed class ModelManagementForm : Form
     {
         if (!watch && recordingFavoriteIds.Contains(favorite.Id))
         {
-            statusLabel.Text = "\uB179\uD654\uC911\uC778 \uBAA8\uB378\uC740 Watch\uB97C Off\uB85C \uBCC0\uACBD\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.";
+            statusLabel.Text = "녹화중인 모델은 감시를 끌 수 없습니다.";
             return false;
         }
 
@@ -351,7 +417,7 @@ public sealed class ModelManagementForm : Form
         selectedFavoriteId = favorite.Id;
         favoriteStore.Save(favorites);
         enabledCheckBox.Checked = watch;
-        statusLabel.Text = $"{favorite.DisplayName}: Watch {(watch ? "On" : "Off")}";
+        statusLabel.Text = $"{favorite.DisplayName}: 감시 {(watch ? "켜짐" : "꺼짐")}";
         FavoritesChanged?.Invoke(this, EventArgs.Empty);
         return true;
     }
@@ -365,7 +431,7 @@ public sealed class ModelManagementForm : Form
 
         var id = BuildFavoriteId(site, userId);
         var now = DateTimeOffset.Now;
-        var existing = favorites.Items.FirstOrDefault(item => item.Id.Equals(id, StringComparison.OrdinalIgnoreCase));
+        var existing = FindFavorite(id);
         if (existing is not null)
         {
             selectedFavoriteId = existing.Id;
@@ -383,26 +449,27 @@ public sealed class ModelManagementForm : Form
             LastKnownUrl = profileUrl,
             Memo = memoTextBox.Text.Trim(),
             Enabled = enabledCheckBox.Checked,
+            CheckIntervalSeconds = ReadCheckIntervalSeconds(),
             Metadata = BuildBroadcastMetadata(),
             CreatedAt = now,
             UpdatedAt = now
         });
 
-        SaveAndRefresh($"모델??추�??�습?�다: {nickname}");
+        SaveAndRefresh($"모델을 추가했습니다: {nickname}");
     }
 
     private void UpdateModel()
     {
         if (string.IsNullOrWhiteSpace(selectedFavoriteId))
         {
-            statusLabel.Text = "?�정??모델???�택?�세??";
+            statusLabel.Text = "수정할 모델을 선택하세요.";
             return;
         }
 
-        var favorite = favorites.Items.FirstOrDefault(item => item.Id.Equals(selectedFavoriteId, StringComparison.OrdinalIgnoreCase));
+        var favorite = FindFavorite(selectedFavoriteId);
         if (favorite is null)
         {
-            statusLabel.Text = "?�택??모델??찾을 ???�습?�다.";
+            statusLabel.Text = "선택한 모델을 찾을 수 없습니다.";
             return;
         }
 
@@ -415,19 +482,19 @@ public sealed class ModelManagementForm : Form
         var changesIdentity = !newId.Equals(favorite.Id, StringComparison.OrdinalIgnoreCase);
         if (changesIdentity && recordingFavoriteIds.Contains(favorite.Id))
         {
-            statusLabel.Text = "?�화중인 모델?� ?�이???�이?��? ?�정?????�습?�다.";
+            statusLabel.Text = "녹화중인 모델은 사이트와 아이디를 수정할 수 없습니다.";
             return;
         }
 
         if (!enabledCheckBox.Checked && recordingFavoriteIds.Contains(favorite.Id))
         {
-            statusLabel.Text = "\uB179\uD654\uC911\uC778 \uBAA8\uB378\uC740 Watch\uB97C Off\uB85C \uBCC0\uACBD\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.";
+            statusLabel.Text = "녹화중인 모델은 감시를 끌 수 없습니다.";
             return;
         }
 
         if (changesIdentity && favorites.Items.Any(item => item.Id.Equals(newId, StringComparison.OrdinalIgnoreCase)))
         {
-            statusLabel.Text = "같�? ?�이?��? ?�이?�의 모델???��? ?�습?�다.";
+            statusLabel.Text = "같은 사이트와 아이디의 모델이 이미 있습니다.";
             return;
         }
 
@@ -441,47 +508,41 @@ public sealed class ModelManagementForm : Form
         SetMetadata(favorite, "broadcastStartTime", broadcastStartTextBox.Text.Trim());
         SetMetadata(favorite, "broadcastEndTime", broadcastEndTextBox.Text.Trim());
         favorite.Enabled = enabledCheckBox.Checked;
+        favorite.CheckIntervalSeconds = ReadCheckIntervalSeconds();
         favorite.UpdatedAt = DateTimeOffset.Now;
         selectedFavoriteId = favorite.Id;
 
-        SaveAndRefresh($"모델???�정?�습?�다: {nickname}");
+        SaveAndRefresh($"모델을 수정했습니다: {nickname}");
     }
 
     private void DeleteModel()
     {
         if (string.IsNullOrWhiteSpace(selectedFavoriteId))
         {
-            statusLabel.Text = "??��??모델???�택?�세??";
+            statusLabel.Text = "삭제할 모델을 선택하세요.";
             return;
         }
 
         if (recordingFavoriteIds.Contains(selectedFavoriteId))
         {
-            statusLabel.Text = "?�화중인 모델?� ??��?????�습?�다.";
+            statusLabel.Text = "녹화중인 모델은 삭제할 수 없습니다.";
             return;
         }
 
-        var favorite = favorites.Items.FirstOrDefault(item => item.Id.Equals(selectedFavoriteId, StringComparison.OrdinalIgnoreCase));
+        var favorite = FindFavorite(selectedFavoriteId);
         if (favorite is null)
         {
             return;
         }
 
-        var result = MessageBox.Show(
-            this,
-            $"{favorite.DisplayName} \uBAA8\uB378\uC744 \uC0AD\uC81C\uD560\uAE4C\uC694?",
-            Text,
-            MessageBoxButtons.YesNo,
-            MessageBoxIcon.Question,
-            MessageBoxDefaultButton.Button2);
-        if (result != DialogResult.Yes)
+        if (ConfirmDialog.Ask(this, Text, $"{favorite.DisplayName} 모델을 삭제할까요?") != DialogResult.Yes)
         {
             return;
         }
 
         favorites.Items.Remove(favorite);
         selectedFavoriteId = "";
-        SaveAndRefresh($"\uBAA8\uB378\uC744 \uC0AD\uC81C\uD588\uC2B5\uB2C8\uB2E4: {favorite.DisplayName}");
+        SaveAndRefresh($"모델을 삭제했습니다: {favorite.DisplayName}");
         ClearEditor();
     }
 
@@ -494,7 +555,7 @@ public sealed class ModelManagementForm : Form
 
         if (string.IsNullOrWhiteSpace(nickname) || string.IsNullOrWhiteSpace(userId))
         {
-            statusLabel.Text = "?�네?�과 ?�이?��? 모두 ?�력?�세??";
+            statusLabel.Text = "닉네임과 아이디를 모두 입력하세요.";
             return false;
         }
 
@@ -547,6 +608,7 @@ public sealed class ModelManagementForm : Form
         memoTextBox.Clear();
         broadcastStartTextBox.Clear();
         broadcastEndTextBox.Clear();
+        checkIntervalInput.Value = 0;
         enabledCheckBox.Checked = true;
         urlEditedManually = false;
         UpdateButtonStates();
@@ -582,13 +644,26 @@ public sealed class ModelManagementForm : Form
         return profileUrl.Trim().Equals(BuildProfileUrl(site.LoginUrl, platformUserId), StringComparison.OrdinalIgnoreCase);
     }
 
-
     private Dictionary<string, string> BuildBroadcastMetadata()
     {
         var metadata = new Dictionary<string, string>();
         SetMetadata(metadata, "broadcastStartTime", broadcastStartTextBox.Text.Trim());
         SetMetadata(metadata, "broadcastEndTime", broadcastEndTextBox.Text.Trim());
         return metadata;
+    }
+
+    /// <summary>0 means "use the global 접속 확인 간격 from 환경설정" - stored as null, not 0,
+    /// so PerModelIntervalRule's own &gt;0 check (Monitoring/IntervalRules.cs) treats it the
+    /// same way a favorites.json written before this field existed already behaves.</summary>
+    private int? ReadCheckIntervalSeconds()
+    {
+        var seconds = (int)checkIntervalInput.Value;
+        return seconds > 0 ? seconds : null;
+    }
+
+    private static string FormatCheckInterval(FavoriteItem favorite)
+    {
+        return favorite.CheckIntervalSeconds is > 0 ? $"{favorite.CheckIntervalSeconds}초" : "-";
     }
 
     private static string FormatBroadcastTime(FavoriteItem favorite)
@@ -623,6 +698,7 @@ public sealed class ModelManagementForm : Form
 
         metadata[key] = value;
     }
+
     private void UpdateButtonStates()
     {
         updateButton.Enabled = !string.IsNullOrWhiteSpace(selectedFavoriteId);
@@ -648,27 +724,25 @@ public sealed class ModelManagementForm : Form
         }
     }
 
-    private static Control CreateFieldPanel(string labelText, Control input)
+    private static Control CreateFieldPanel(string labelText, Control input, bool wrap = true)
     {
-        var panel = new TableLayoutPanel
+        var panel = new BufferedTableLayoutPanel
         {
             ColumnCount = 1,
             Dock = DockStyle.Fill,
-            Margin = new Padding(0, 0, 8, 0),
-            RowCount = 3
+            Margin = new Padding(0, 0, 10, 0),
+            RowCount = 2
         };
         panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 22F));
-        panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F));
 
-        var label = new Label
-        {
-            Dock = DockStyle.Fill,
-            Text = labelText,
-            TextAlign = ContentAlignment.MiddleLeft
-        };
-
-        panel.Controls.Add(label, 0, 0);
-        panel.Controls.Add(input, 0, 1);
+        panel.Controls.Add(CreateLabel(labelText, Theme.Small, Theme.TextMuted), 0, 0);
+        panel.Controls.Add(
+            wrap
+                ? new InputHost(input) { Anchor = AnchorStyles.Left | AnchorStyles.Right, Margin = new Padding(0, 1, 0, 0) }
+                : input,
+            0,
+            1);
         return panel;
     }
 
@@ -687,7 +761,7 @@ public sealed class ModelManagementForm : Form
 
     private static string DisplayName(SiteProfile site)
     {
-        return string.IsNullOrWhiteSpace(site.Name) ? "\uC0AC\uC774\uD2B8" : site.Name.Trim();
+        return string.IsNullOrWhiteSpace(site.Name) ? "사이트" : site.Name.Trim();
     }
 
     private static string BuildProfileUrl(string loginUrl, string platformUserId)

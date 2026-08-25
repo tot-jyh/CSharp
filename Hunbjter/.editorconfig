@@ -1,0 +1,15 @@
+root = true
+
+# Korean string literals in this project were corrupted once by a tool that guessed the
+# file encoding. Pinning the charset keeps that from happening again.
+[*.cs]
+charset = utf-8-bom
+end_of_line = crlf
+indent_style = space
+indent_size = 4
+insert_final_newline = true
+
+[*.{csproj,slnx,json,md}]
+charset = utf-8
+indent_style = space
+indent_size = 2

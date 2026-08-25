@@ -1,56 +1,114 @@
 ﻿namespace Hunbjter
 {
-    public partial class Form1 : Form
+    public partial class Form1 : ThemedForm, IRecordingCoordinator
     {
         private readonly LoginSettingsStore settingsStore = new();
         private readonly SiteSettingsStore siteSettingsStore = new();
         private readonly FavoriteStore favoriteStore = new();
+        private readonly FavoritesPersistence favoritesPersistence;
         private readonly PandaLiveService pandaLiveService = new();
         private readonly RecordingService recordingService = new();
         private readonly LoginBrowserForm loginBrowserForm = new();
+        private readonly WebViewGate webViewGate;
+        private readonly CancellationTokenSource shutdownCts = new();
         private readonly Dictionary<string, RecordingSession> recordingSessions = new(StringComparer.OrdinalIgnoreCase);
-        private readonly HashSet<string> pendingNewFavoriteIds = new(StringComparer.OrdinalIgnoreCase);
-        private readonly System.Windows.Forms.Timer modelCheckTimer = new();
+        private readonly MonitorRoster monitorRoster;
+        private readonly WebViewLiveStatusProbe liveStatusProbe;
         private readonly System.Windows.Forms.Timer recordingFileSizeTimer = new();
         private readonly NotifyIcon trayIcon = new();
         private readonly ContextMenuStrip trayContextMenu = new();
-        private readonly DataGridView liveFavoritesGridView = new();
-        private readonly Label liveFavoritesLabel = new();
-        private readonly Label standbyFavoritesLabel = new();
+        private readonly ThemedGrid liveFavoritesGridView = new();
+        private readonly SectionHeader liveHeader = new();
+        private readonly SectionHeader standbyHeader = new();
+        private readonly Dictionary<string, long> recordingSizeCache = new(StringComparer.OrdinalIgnoreCase);
         private DataGridView? activeFavoritesGridView;
+        private (int Row, int Column) hoverInteractiveCell = (-1, -1);
         private readonly ToolStripMenuItem showTrayMenuItem = new();
         private readonly ToolStripMenuItem exitTrayMenuItem = new();
-        private static readonly TimeSpan RecentLastSeenWindow = TimeSpan.FromMinutes(20);
-        private static readonly TimeSpan RecentLastSeenCheckInterval = TimeSpan.FromSeconds(30);
-        private static readonly TimeSpan PaidRoomRetryInterval = TimeSpan.FromSeconds(10);
         private static readonly TimeSpan RecordingFileSizeInterval = TimeSpan.FromSeconds(10);
         private LoginSettings settings = new();
         private FavoritesDocument favorites = new();
         private int favoriteSortColumn = 3;
         private SortOrder favoriteSortOrder = SortOrder.Ascending;
-        private Task? pendingNewFavoriteCheckTask;
-        private bool modelCheckInProgress;
-        private bool newFavoriteCheckInProgress;
-        private bool startupCheckStarted;
         private bool closingConfirmed;
         private bool isShuttingDown;
+        private bool logCollapsed = true;
 
         public Form1()
         {
+            webViewGate = new WebViewGate(() => loginBrowserForm.WebView);
+            favoritesPersistence = new FavoritesPersistence(favoriteStore);
+            favoritesPersistence.SaveFailed += (_, e) => AddLog(e.Message);
+            liveStatusProbe = new WebViewLiveStatusProbe(pandaLiveService);
+            liveStatusProbe.LogRequested += (_, e) => AddLog(e.Message);
+
+            monitorRoster = new MonitorRoster(new MonitorContext(
+                liveStatusProbe,
+                webViewGate,
+                this,
+                [
+                    new PerModelIntervalRule(),
+                    new PaidRoomRetryRule(),
+                    new RecentlySeenRule(),
+                    new FailureBackoffRule()
+                ],
+                () => settings,
+                TimeProvider.System));
+            monitorRoster.LogRequested += (_, e) => AddLog(e.Message);
+            monitorRoster.StatusChanged += monitorRoster_StatusChanged;
+
             InitializeComponent();
+            ApplyTheme();
+            ApplyLogVisibility();
             ConfigureSplitFavoriteGrids();
             ConfigureTrayIcon();
             WireFavoriteGridEvents(favoritesGridView);
             WireFavoriteGridEvents(liveFavoritesGridView);
-            modelCheckTimer.Tick += modelCheckTimer_Tick;
             recordingFileSizeTimer.Interval = (int)RecordingFileSizeInterval.TotalMilliseconds;
             recordingFileSizeTimer.Tick += recordingFileSizeTimer_Tick;
             recordingFileSizeTimer.Start();
             Shown += Form1_Shown;
             LoadSettings();
             LoadFavorites();
-            ConfigureModelCheckTimer();
+
+#if DEBUG
+            designPreviewActive = TryApplyDesignPreview();
+#endif
         }
+
+#if DEBUG
+        private bool designPreviewActive;
+
+        /// <summary>
+        /// Fills the grids with synthetic rows so every badge state can be reviewed without a
+        /// live session. Gated behind an environment flag, so a normal launch is unaffected:
+        /// no network, no recording, and the real favorites store is never read or written.
+        /// </summary>
+        private bool TryApplyDesignPreview()
+        {
+            if (!DesignPreview.IsEnabled)
+            {
+                return false;
+            }
+
+            favorites = DesignPreview.CreateFavorites();
+
+            foreach (var id in DesignPreview.RecordingIds)
+            {
+                recordingSessions[id] = DesignPreview.CreateIdleSession();
+            }
+
+            RefreshFavoriteList();
+
+            foreach (var line in DesignPreview.SampleLog)
+            {
+                logView.Append(line);
+            }
+
+            SetStatus("디자인 미리보기 모드 (실제 데이터 아님)");
+            return true;
+        }
+#endif
 
         protected override void OnResize(EventArgs e)
         {
@@ -60,6 +118,22 @@
             {
                 Hide();
             }
+        }
+
+        /// <summary>
+        /// Answers <see cref="SingleInstanceGuard.WakeMessage"/> from a second launch attempt by
+        /// surfacing this window instead. The message is a broadcast, so it arrives here even
+        /// while the form is hidden in the tray.
+        /// </summary>
+        protected override void WndProc(ref Message m)
+        {
+            if (m.Msg == SingleInstanceGuard.WakeMessage)
+            {
+                RestoreFromTray();
+                return;
+            }
+
+            base.WndProc(ref m);
         }
 
         protected override void OnFormClosing(FormClosingEventArgs e)
@@ -78,7 +152,12 @@
             }
 
             isShuttingDown = true;
-            modelCheckTimer.Stop();
+
+            // Cancel and abandon: awaiting the monitor loops here would deadlock, because their
+            // continuations need the message pump this thread is about to stop running.
+            shutdownCts.Cancel();
+            monitorRoster.Retire();
+            favoritesPersistence.Flush();
             recordingFileSizeTimer.Stop();
             StopAllRecordingsForExit();
             base.OnFormClosing(e);
@@ -92,64 +171,144 @@
             base.OnFormClosed(e);
         }
 
+        /// <summary>Applies the dark palette to the pieces the designer cannot express.</summary>
+        private void ApplyTheme()
+        {
+            ThemedMenuRenderer.Apply(favoriteContextMenu);
+            ApplyColumnStyles(favoritesGridView);
+
+            // Deliberately in code, not in Form1.Designer.cs: HeaderBar.ActionHost is a property
+            // returning a nested container, not a Designer-tracked field, so the WinForms
+            // Designer has no idea it needs to preserve Controls.Add calls into it - the first
+            // time this project's owner opens the form in Visual Studio and it resaves
+            // InitializeComponent, that wiring (and these buttons along with it) silently
+            // vanishes from the rendered form. Same story for StatCard.Caption/AccentColor below:
+            // both are [DesignerSerializationVisibility(Hidden)] (to silence a WFO1000 warning),
+            // which is the Designer's own signal to never persist them - so any assignment placed
+            // in the Designer file is guaranteed to be dropped on the next resave. Keeping all of
+            // it here instead makes it immune to that.
+            ConfigureHeaderBar();
+            ConfigureStatCards();
+        }
+
+        private void ConfigureHeaderBar()
+        {
+            siteManagementButton.Variant = ButtonVariant.Secondary;
+            environmentSettingsButton.Variant = ButtonVariant.Secondary;
+            modelManagementButton.Variant = ButtonVariant.Primary;
+            toggleLogButton.Variant = ButtonVariant.Ghost;
+            clearLogButton.Variant = ButtonVariant.Ghost;
+
+            // FlowDirection is RightToLeft, so the first control added ends up furthest right.
+            headerBar.ActionHost.Controls.Add(modelManagementButton);
+            headerBar.ActionHost.Controls.Add(environmentSettingsButton);
+            headerBar.ActionHost.Controls.Add(siteManagementButton);
+        }
+
+        private void ConfigureStatCards()
+        {
+            watchingCard.Caption = "감시중";
+            watchingCard.AccentColor = Theme.Accent;
+
+            liveCard.Caption = "방송중";
+            liveCard.AccentColor = Theme.Live;
+
+            recordingCard.Caption = "녹화중";
+            recordingCard.AccentColor = Theme.Recording;
+
+            sizeCard.Caption = "녹화 용량";
+            sizeCard.AccentColor = Theme.Warning;
+        }
+
         private void ConfigureSplitFavoriteGrids()
         {
             CloneFavoriteGrid(favoritesGridView, liveFavoritesGridView);
             liveFavoritesGridView.Name = "liveFavoritesGridView";
 
-            liveFavoritesLabel.Text = "방송중";
-            liveFavoritesLabel.Dock = DockStyle.Fill;
-            liveFavoritesLabel.TextAlign = ContentAlignment.MiddleLeft;
-            liveFavoritesLabel.Font = new Font(Font, FontStyle.Bold);
-            liveFavoritesLabel.Padding = new Padding(2, 0, 0, 0);
+            // A faint cast of the same green already used for the 방송중 dot/REC badges is the
+            // one signal that reliably tells the two grids apart from across the room, not just
+            // from the section header above them. RestBackColor (not DefaultCellStyle.BackColor
+            // directly) keeps the tint intact after a row is hovered and the mouse moves away.
+            var liveTint = Theme.Blend(Theme.Live, Theme.Background, 0.08);
+            liveFavoritesGridView.BackgroundColor = liveTint;
+            liveFavoritesGridView.RestBackColor = liveTint;
+            var liveHeaderTint = Theme.Blend(Theme.Live, Theme.Background, 0.14);
+            liveFavoritesGridView.ColumnHeadersDefaultCellStyle.BackColor = liveHeaderTint;
+            // Matches the header fill so a header click does not flash the untinted default.
+            liveFavoritesGridView.ColumnHeadersDefaultCellStyle.SelectionBackColor = liveHeaderTint;
 
-            standbyFavoritesLabel.Text = "목록";
-            standbyFavoritesLabel.Dock = DockStyle.Fill;
-            standbyFavoritesLabel.TextAlign = ContentAlignment.MiddleLeft;
-            standbyFavoritesLabel.Font = new Font(Font, FontStyle.Bold);
-            standbyFavoritesLabel.Padding = new Padding(2, 0, 0, 0);
+            // Each grid hides what is not useful for its own rows. The column indices below stay
+            // fixed (0..11) either way - hiding a column only affects rendering/hit-testing, not
+            // its Index, so every Cells[10]/Cells[11]/switch(ColumnIndex)/sort-by-index elsewhere
+            // in this file keeps working unmodified for both grids.
+            liveFavoritesGridView.Columns[8].Visible = false; // 마지막 확인 - 방송중인 항목은 계속 갱신되므로 불필요
+
+            // Standby rows have never had a live check succeed, so these are always blank there.
+            favoritesGridView.Columns[5].Visible = false;  // 녹화
+            favoritesGridView.Columns[6].Visible = false;  // 해상도
+            favoritesGridView.Columns[10].Visible = false; // 파일 크기
+            favoritesGridView.Columns[11].Visible = false; // 순간기록
+
+            liveHeader.Title = "방송중";
+            liveHeader.DotColor = Theme.Live;
+
+            standbyHeader.Title = "대기 목록";
+            standbyHeader.DotColor = Theme.TextMuted;
+            standbyHeader.HollowDot = true;
 
             favoritePanel.SuspendLayout();
             favoritePanel.Controls.Clear();
             favoritePanel.RowStyles.Clear();
             favoritePanel.RowCount = 4;
-            favoritePanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 24F));
+            favoritePanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 30F));
             favoritePanel.RowStyles.Add(new RowStyle(SizeType.Percent, 42F));
-            favoritePanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 24F));
+            favoritePanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F));
             favoritePanel.RowStyles.Add(new RowStyle(SizeType.Percent, 58F));
-            favoritePanel.Controls.Add(liveFavoritesLabel, 0, 0);
+            favoritePanel.Controls.Add(liveHeader, 0, 0);
             favoritePanel.Controls.Add(liveFavoritesGridView, 0, 1);
-            favoritePanel.Controls.Add(standbyFavoritesLabel, 0, 2);
+            favoritePanel.Controls.Add(standbyHeader, 0, 2);
             favoritePanel.Controls.Add(favoritesGridView, 0, 3);
             favoritePanel.ResumeLayout(false);
         }
 
-        private static void CloneFavoriteGrid(DataGridView source, DataGridView target)
+        /// <summary>
+        /// Only the column set is cloned. Everything visual now comes from the
+        /// <see cref="ThemedGrid"/> constructor, so both grids stay in sync by construction.
+        /// </summary>
+        private static void CloneFavoriteGrid(ThemedGrid source, ThemedGrid target)
         {
-            target.AllowUserToAddRows = source.AllowUserToAddRows;
-            target.AllowUserToDeleteRows = source.AllowUserToDeleteRows;
-            target.AllowUserToResizeRows = source.AllowUserToResizeRows;
-            target.BackgroundColor = source.BackgroundColor;
-            target.BorderStyle = source.BorderStyle;
-            target.ColumnHeadersDefaultCellStyle.Alignment = source.ColumnHeadersDefaultCellStyle.Alignment;
-            target.DefaultCellStyle.Alignment = source.DefaultCellStyle.Alignment;
-            target.ColumnHeadersHeight = source.ColumnHeadersHeight;
-            target.ColumnHeadersHeightSizeMode = source.ColumnHeadersHeightSizeMode;
             target.ContextMenuStrip = source.ContextMenuStrip;
             target.Dock = DockStyle.Fill;
-            target.EditMode = source.EditMode;
             target.Margin = source.Margin;
-            target.MultiSelect = source.MultiSelect;
-            target.ReadOnly = source.ReadOnly;
-            target.RowHeadersVisible = source.RowHeadersVisible;
-            target.RowTemplate.Height = source.RowTemplate.Height;
-            target.SelectionMode = source.SelectionMode;
             target.TabIndex = source.TabIndex;
 
             target.Columns.Clear();
             foreach (DataGridViewColumn column in source.Columns)
             {
-                target.Columns.Add((DataGridViewColumn)column.Clone());
+                var clone = (DataGridViewColumn)column.Clone();
+
+                // Clone() does not reliably carry AutoSizeMode, and the grid depends on the
+                // name column filling the leftover width to avoid a horizontal scroll bar.
+                clone.AutoSizeMode = column.AutoSizeMode;
+                clone.MinimumWidth = column.MinimumWidth;
+                target.Columns.Add(clone);
+            }
+
+            ApplyColumnStyles(target);
+        }
+
+        /// <summary>Secondary columns are dimmed so the model name and status carry the row.</summary>
+        private static void ApplyColumnStyles(ThemedGrid grid)
+        {
+            grid.Columns[1].DefaultCellStyle.ForeColor = Theme.TextMuted;
+            grid.Columns[1].DefaultCellStyle.Font = Theme.Small;
+            grid.Columns[2].DefaultCellStyle.ForeColor = Theme.TextSecondary;
+            grid.Columns[3].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleLeft;
+
+            foreach (var index in new[] { 6, 7, 8, 10 })
+            {
+                grid.Columns[index].DefaultCellStyle.ForeColor = Theme.TextSecondary;
+                grid.Columns[index].DefaultCellStyle.Font = Theme.Mono;
             }
         }
 
@@ -157,7 +316,7 @@
         {
             grid.SelectionChanged += favoritesGridView_SelectionChanged;
             grid.CellMouseDown += favoritesGridView_CellMouseDown;
-            grid.CellContentClick += favoritesGridView_CellContentClick;
+            grid.CellClick += favoritesGridView_CellClick;
             grid.CellPainting += favoritesGridView_CellPainting;
             grid.CellMouseMove += favoritesGridView_CellMouseMove;
             grid.CellMouseLeave += favoritesGridView_CellMouseLeave;
@@ -165,7 +324,9 @@
         }
         private void ConfigureTrayIcon()
         {
-            ShowInTaskbar = false;
+            // Foreground: taskbar + tray both show. Minimized: OnResize above hides the window
+            // entirely, which drops it from the taskbar and leaves only the tray icon.
+            ShowInTaskbar = true;
 
             showTrayMenuItem.Text = "\uC5F4\uAE30";
             showTrayMenuItem.Click += (_, _) => RestoreFromTray();
@@ -183,8 +344,9 @@
                 exitTrayMenuItem
             });
 
+            ThemedMenuRenderer.Apply(trayContextMenu);
             trayIcon.ContextMenuStrip = trayContextMenu;
-            trayIcon.Icon = Icon ?? SystemIcons.Application;
+            trayIcon.Icon = AppIcon.Shared;
             trayIcon.Text = Text;
             trayIcon.Visible = true;
             trayIcon.DoubleClick += (_, _) => RestoreFromTray();
@@ -204,14 +366,12 @@
 
         private DialogResult ShowTimedExitConfirm()
         {
-            using var confirmForm = new Form
+            using var confirmForm = new ThemedDialog
             {
                 Text = Text,
-                StartPosition = FormStartPosition.CenterParent,
                 FormBorderStyle = FormBorderStyle.FixedDialog,
                 MinimizeBox = false,
                 MaximizeBox = false,
-                ShowInTaskbar = false,
                 ClientSize = new Size(380, 178),
                 Padding = new Padding(18)
             };
@@ -230,7 +390,8 @@
             var titleLabel = new Label
             {
                 Dock = DockStyle.Fill,
-                Font = new Font(confirmForm.Font, FontStyle.Bold),
+                Font = Theme.Title,
+                ForeColor = Theme.TextPrimary,
                 Text = "\uC885\uB8CC\uD560\uAE4C\uC694?",
                 TextAlign = ContentAlignment.MiddleLeft
             };
@@ -238,6 +399,7 @@
             var messageLabel = new Label
             {
                 Dock = DockStyle.Fill,
+                ForeColor = Theme.TextSecondary,
                 Text = "\uB179\uD654\uC911\uC778 \uD56D\uBAA9\uC774 \uC788\uC73C\uBA74 \uC548\uC804\uD558\uAC8C \uC885\uB8CC\uD55C \uB4A4 \uC571\uC744 \uB2EB\uC2B5\uB2C8\uB2E4.",
                 TextAlign = ContentAlignment.MiddleLeft
             };
@@ -245,7 +407,7 @@
             var countdownLabel = new Label
             {
                 Dock = DockStyle.Fill,
-                ForeColor = SystemColors.GrayText,
+                ForeColor = Theme.TextMuted,
                 Text = "3\uCD08 \uD6C4 \uC790\uB3D9\uC73C\uB85C \uC885\uB8CC\uD569\uB2C8\uB2E4.",
                 TextAlign = ContentAlignment.MiddleLeft
             };
@@ -261,19 +423,21 @@
             buttonPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 92F));
             buttonPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
-            var yesButton = new Button
+            var yesButton = new ThemedButton
             {
                 Anchor = AnchorStyles.Right | AnchorStyles.Bottom,
                 DialogResult = DialogResult.Yes,
                 Size = new Size(84, 30),
-                Text = "\uC608"
+                Text = "\uC608",
+                Variant = ButtonVariant.Primary
             };
-            var noButton = new Button
+            var noButton = new ThemedButton
             {
                 Anchor = AnchorStyles.Right | AnchorStyles.Bottom,
                 DialogResult = DialogResult.No,
                 Size = new Size(84, 30),
-                Text = "\uC544\uB2C8\uC694"
+                Text = "\uC544\uB2C8\uC694",
+                Variant = ButtonVariant.Ghost
             };
 
             buttonPanel.Controls.Add(yesButton, 1, 0);
@@ -314,84 +478,65 @@
             settings = settingsStore.Load();
 
             SetStatus("사이트관리에서 로그인 정보를 관리하세요.");
-            ConfigureModelCheckTimer();
         }
 
-        private async void Form1_Shown(object? sender, EventArgs e)
+        private void Form1_Shown(object? sender, EventArgs e)
         {
-            if (startupCheckStarted)
+#if DEBUG
+            if (designPreviewActive)
             {
                 return;
             }
+#endif
 
-            startupCheckStarted = true;
-            await CheckStartupFavoritesAsync();
+            // Started here rather than in the constructor so each monitor's loop captures the
+            // UI thread's SynchronizationContext — that is what makes WebView2 access legal.
+            monitorRoster.Sync(favorites);
+            monitorRoster.Start();
         }
 
-        private async Task CheckStartupFavoritesAsync()
+        private void monitorRoster_StatusChanged(object? sender, ModelStatusChangedEventArgs e)
         {
-            if (modelCheckInProgress)
+            if (isShuttingDown || IsDisposed)
             {
                 return;
             }
 
-            var targets = favorites.Items.Where(item => item.Enabled).ToList();
-            if (targets.Count == 0)
-            {
-                return;
-            }
-
-            modelCheckInProgress = true;
-            modelCheckTimer.Stop();
-            try
-            {
-                await CheckFavoritesAndAutoRecordAsync(targets, "앱 시작 방송 확인");
-            }
-            finally
-            {
-                modelCheckInProgress = false;
-                ConfigureModelCheckTimer();
-            }
+            // Debounced: with each model checking on its own schedule, saving synchronously here
+            // would rewrite the whole document once per model per interval instead of once per
+            // batch. Structural changes (add/delete/watch toggle/recording lifecycle) still save
+            // immediately elsewhere and are unaffected.
+            favoritesPersistence.MarkDirty(favorites);
+            RefreshFavoriteList();
         }
 
         private async void siteManagementButton_Click(object sender, EventArgs e)
         {
             using var siteManagementForm = new SiteManagementForm(siteSettingsStore, settingsStore, settings);
-            siteManagementForm.FavoritesChanged += (_, _) =>
-            {
-                ReloadFavoritesAndQueueNew();
-                pendingNewFavoriteCheckTask = CheckPendingNewFavoritesAsync();
-            };
 
-            if (siteManagementForm.ShowDialog(this) == DialogResult.OK)
+            // The dialog loads, edits and saves the same files the monitors write, so hold the
+            // monitors while it is open rather than racing it.
+            monitorRoster.Suspend();
+            favoritesPersistence.Flush();
+            try
             {
-                if (pendingNewFavoriteCheckTask is not null)
-                {
-                    await pendingNewFavoriteCheckTask;
-                }
+                var result = siteManagementForm.ShowDialog(this);
 
                 LoadSettings();
                 LoadFavorites(resetRuntimeState: false);
-                pendingNewFavoriteCheckTask = CheckPendingNewFavoritesAsync();
-                await pendingNewFavoriteCheckTask;
-                SetStatus("사이트 설정을 반영했습니다.");
-                await PreparePandaSessionForMainAsync("사이트 설정 후 세션 준비");
-                await CheckFavoritesAfterSiteSettingsAsync();
-            }
-        }
+                monitorRoster.Sync(favorites);
 
-        private async Task CheckFavoritesAfterSiteSettingsAsync()
-        {
-            var targets = favorites.Items
-                .Where(item => item.Enabled && !recordingSessions.ContainsKey(item.Id))
-                .ToList();
-            if (targets.Count == 0)
+                if (result == DialogResult.OK)
+                {
+                    SetStatus("사이트 설정을 반영했습니다.");
+                }
+            }
+            finally
             {
-                return;
+                monitorRoster.Resume();
             }
 
-            await CheckFavoritesAndAutoRecordAsync(targets, "사이트 설정 후 모델 접속확인");
-            ConfigureModelCheckTimer();
+            await Task.CompletedTask;
         }
 
         private void environmentSettingsButton_Click(object sender, EventArgs e)
@@ -405,34 +550,22 @@
                 siteSettingsStore,
                 favoriteStore,
                 recordingSessions.Keys.ToHashSet(StringComparer.OrdinalIgnoreCase));
-            modelManagementForm.FavoritesChanged += (_, _) =>
-            {
-                ReloadFavoritesAndQueueNew();
-                pendingNewFavoriteCheckTask = CheckPendingNewFavoritesAsync();
-            };
 
-            modelManagementForm.ShowDialog(this);
-            if (pendingNewFavoriteCheckTask is not null)
+            monitorRoster.Suspend();
+            favoritesPersistence.Flush();
+            try
             {
-                await pendingNewFavoriteCheckTask;
+                modelManagementForm.ShowDialog(this);
+
+                LoadFavorites(resetRuntimeState: false);
+                monitorRoster.Sync(favorites);
+            }
+            finally
+            {
+                monitorRoster.Resume();
             }
 
-            LoadFavorites(resetRuntimeState: false);
-            await CheckFavoritesAfterModelManagementAsync();
-        }
-
-        private async Task CheckFavoritesAfterModelManagementAsync()
-        {
-            var targets = favorites.Items
-                .Where(item => item.Enabled && !recordingSessions.ContainsKey(item.Id))
-                .ToList();
-            if (targets.Count == 0)
-            {
-                return;
-            }
-
-            await CheckFavoritesAndAutoRecordAsync(targets, "모델관리 후 모델 접속확인");
-            ConfigureModelCheckTimer();
+            await Task.CompletedTask;
         }
 
         private bool ShowEnvironmentSettings()
@@ -446,73 +579,8 @@
             settingsStore.Save(settings);
             SetStatus("환경설정을 저장했습니다.");
             AddLog($"환경설정 저장: ffmpeg={settings.FfmpegPath}, 저장위치={settings.RecordingDirectory}");
-            ConfigureModelCheckTimer();
+            monitorRoster.Resume();
             return true;
-        }
-
-        private void ConfigureModelCheckTimer()
-        {
-            var intervalSeconds = GetConfiguredModelCheckIntervalSeconds();
-            if (HasRecentlySeenFavorite())
-            {
-                intervalSeconds = Math.Min(intervalSeconds, (int)RecentLastSeenCheckInterval.TotalSeconds);
-            }
-            if (HasPaidRoomRetryFavorite())
-            {
-                intervalSeconds = Math.Min(intervalSeconds, (int)PaidRoomRetryInterval.TotalSeconds);
-            }
-
-            modelCheckTimer.Stop();
-            modelCheckTimer.Interval = Math.Clamp(intervalSeconds, 10, 86400) * 1000;
-            modelCheckTimer.Start();
-        }
-
-        private int GetConfiguredModelCheckIntervalSeconds()
-        {
-            return Math.Clamp(settings.ModelCheckIntervalSeconds > 0
-                ? settings.ModelCheckIntervalSeconds
-                : 300, 10, 86400);
-        }
-
-        private bool HasRecentlySeenFavorite()
-        {
-            var now = DateTimeOffset.Now;
-            return favorites.Items.Any(item =>
-                item.Enabled
-                && !recordingSessions.ContainsKey(item.Id)
-                && IsRecentlySeenButNotLive(item, now));
-        }
-
-        private bool HasPaidRoomRetryFavorite()
-        {
-            return favorites.Items.Any(item =>
-                item.Enabled
-                && !recordingSessions.ContainsKey(item.Id)
-                && HasPaidRoomTicketMessage(item));
-        }
-
-        private bool IsFavoriteDueForAutoCheck(FavoriteItem favorite, DateTimeOffset now)
-        {
-            var interval = HasPaidRoomTicketMessage(favorite)
-                ? PaidRoomRetryInterval
-                : IsRecentlySeenButNotLive(favorite, now)
-                ? RecentLastSeenCheckInterval
-                : TimeSpan.FromSeconds(GetConfiguredModelCheckIntervalSeconds());
-
-            var lastCheck = GetLastCheckedAt(favorite);
-            return !lastCheck.HasValue || now - lastCheck.Value >= interval;
-        }
-
-        private static bool IsRecentlySeen(FavoriteItem favorite, DateTimeOffset now)
-        {
-            return favorite.LastSeenAt.HasValue
-                && favorite.LastSeenAt.Value >= now - RecentLastSeenWindow;
-        }
-
-        private static bool IsRecentlySeenButNotLive(FavoriteItem favorite, DateTimeOffset now)
-        {
-            return IsRecentlySeen(favorite, now)
-                && (!favorite.Metadata.TryGetValue("liveStatus", out var status) || status != "live");
         }
 
         private void ShowLoginBrowser()
@@ -529,6 +597,14 @@
         private void LoadFavorites(bool resetRuntimeState = true)
         {
             favorites = favoriteStore.Load();
+
+            // A corrupted store used to come back as an empty roster, which is indistinguishable
+            // from "the user has no models". Surface it instead.
+            if (favoriteStore.LastLoadFailure is { } loadFailure)
+            {
+                AddLog(loadFailure);
+            }
+
             if (resetRuntimeState)
             {
                 ResetRuntimeFavoriteState();
@@ -558,58 +634,6 @@
             }
         }
 
-        private void ReloadFavoritesAndQueueNew()
-        {
-            var knownIds = favorites.Items
-                .Select(item => item.Id)
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-            LoadFavorites(resetRuntimeState: false);
-
-            var newTargets = favorites.Items
-                .Where(item => item.Enabled && !knownIds.Contains(item.Id))
-                .ToList();
-
-            foreach (var favorite in newTargets)
-            {
-                pendingNewFavoriteIds.Add(favorite.Id);
-            }
-        }
-
-        private async Task CheckPendingNewFavoritesAsync()
-        {
-            if (newFavoriteCheckInProgress)
-            {
-                return;
-            }
-
-            newFavoriteCheckInProgress = true;
-            try
-            {
-                while (pendingNewFavoriteIds.Count > 0)
-                {
-                    var targetIds = pendingNewFavoriteIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
-                    pendingNewFavoriteIds.Clear();
-
-                    var targets = favorites.Items
-                        .Where(item => item.Enabled && targetIds.Contains(item.Id))
-                        .ToList();
-
-                    if (targets.Count == 0)
-                    {
-                        continue;
-                    }
-
-                    await CheckFavoritesAndAutoRecordAsync(targets, "신규 모델 방송 확인");
-                    ConfigureModelCheckTimer();
-                }
-            }
-            finally
-            {
-                newFavoriteCheckInProgress = false;
-            }
-        }
-
         private void ResetRuntimeFavoriteState()
         {
             var changed = false;
@@ -629,6 +653,14 @@
 
         private void RefreshFavoriteList()
         {
+            // Every automatic per-model check ends here too (monitorRoster_StatusChanged), and
+            // with four-plus independent per-model loops this can fire every few seconds. Without
+            // preserving the selection across it, a refresh landing between "right-click a row"
+            // and "click 방송 확인 in the menu that just opened" silently drops the selection -
+            // CheckSelectedOrAllFavoritesAsync then sees nothing selected and falls back to
+            // checking every watched model instead of just the one the user picked.
+            var selectedIds = CaptureSelectedFavoriteIds();
+
             liveFavoritesGridView.Rows.Clear();
             favoritesGridView.Rows.Clear();
 
@@ -636,8 +668,94 @@
             AddFavoriteRows(liveFavoritesGridView, sorted.Where(IsLiveListFavorite));
             AddFavoriteRows(favoritesGridView, sorted.Where(item => !IsLiveListFavorite(item)));
 
-            liveFavoritesGridView.ClearSelection();
-            favoritesGridView.ClearSelection();
+            if (selectedIds.Count == 0 || !RestoreSelection(selectedIds))
+            {
+                // ClearSelection alone leaves the current cell highlighted, which reads as a
+                // phantom selection on the first row after every refresh.
+                liveFavoritesGridView.CurrentCell = null;
+                favoritesGridView.CurrentCell = null;
+                liveFavoritesGridView.ClearSelection();
+                favoritesGridView.ClearSelection();
+            }
+
+            liveHeader.Count = liveFavoritesGridView.Rows.Count;
+            standbyHeader.Count = favoritesGridView.Rows.Count;
+            ApplySortGlyphs();
+            UpdateStatCards();
+        }
+
+        private HashSet<string> CaptureSelectedFavoriteIds()
+        {
+            return liveFavoritesGridView.SelectedRows.Cast<DataGridViewRow>()
+                .Concat(favoritesGridView.SelectedRows.Cast<DataGridViewRow>())
+                .Select(row => row.Tag)
+                .OfType<FavoriteItem>()
+                .Select(item => item.Id)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Re-selects whichever grid the model landed in - it may have moved between 방송중 and
+        /// 대기 목록 across the refresh - and points activeFavoritesGridView at it, since that is
+        /// what GetSelectedFavoriteRows()/TryGetSelectedFavorite() actually read.
+        /// </summary>
+        private bool RestoreSelection(HashSet<string> selectedIds)
+        {
+            return RestoreSelectionIn(liveFavoritesGridView, selectedIds)
+                || RestoreSelectionIn(favoritesGridView, selectedIds);
+        }
+
+        private bool RestoreSelectionIn(ThemedGrid grid, HashSet<string> selectedIds)
+        {
+            foreach (DataGridViewRow row in grid.Rows)
+            {
+                if (row.Tag is not FavoriteItem favorite || !selectedIds.Contains(favorite.Id))
+                {
+                    continue;
+                }
+
+                row.Selected = true;
+                grid.CurrentCell = row.Cells[Math.Max(grid.CurrentCell?.ColumnIndex ?? 1, 1)];
+                activeFavoritesGridView = grid;
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Every column is <see cref="DataGridViewColumnSortMode.Programmatic"/>, so the sort
+        /// indicator has to be driven explicitly or it never appears.
+        /// </summary>
+        private void ApplySortGlyphs()
+        {
+            liveFavoritesGridView.ShowSortGlyph(favoriteSortColumn, favoriteSortOrder);
+            favoritesGridView.ShowSortGlyph(favoriteSortColumn, favoriteSortOrder);
+        }
+
+        private void UpdateStatCards()
+        {
+            RefreshRecordingSizeCache();
+
+            watchingCard.Value = favorites.Items.Count(item => item.Enabled).ToString();
+            liveCard.Value = favorites.Items
+                .Count(item => item.Metadata.TryGetValue("liveStatus", out var status) && status == "live")
+                .ToString();
+            recordingCard.Value = recordingSessions.Count.ToString();
+            sizeCard.Value = FormatFileSizeCompact(recordingSizeCache.Values.Sum());
+        }
+
+        /// <summary>
+        /// Only files being written right now are measured, so the total reflects the current
+        /// session rather than every recording ever left on disk.
+        /// </summary>
+        private void RefreshRecordingSizeCache()
+        {
+            recordingSizeCache.Clear();
+            foreach (var favorite in favorites.Items.Where(item => recordingSessions.ContainsKey(item.Id)))
+            {
+                recordingSizeCache[favorite.Id] = GetRecordingFileSizeBytes(favorite);
+            }
         }
 
         private void AddFavoriteRows(DataGridView grid, IEnumerable<FavoriteItem> items)
@@ -658,9 +776,7 @@
                     GetWatchText(favorite),
                     GetRecordingFileSizeText(favorite),
                     GetInstantCaptureText(favorite));
-                var row = grid.Rows[rowIndex];
-                row.Tag = favorite;
-                UpdateInstantCaptureCell(row, favorite);
+                grid.Rows[rowIndex].Tag = favorite;
                 sequence++;
             }
         }
@@ -714,26 +830,6 @@
             await CheckSelectedOrAllFavoritesAsync();
         }
 
-        private async void modelCheckTimer_Tick(object? sender, EventArgs e)
-        {
-            if (modelCheckInProgress)
-            {
-                return;
-            }
-
-            modelCheckInProgress = true;
-            modelCheckTimer.Stop();
-            try
-            {
-                await CheckAllFavoritesAndAutoRecordAsync();
-            }
-            finally
-            {
-                modelCheckInProgress = false;
-                ConfigureModelCheckTimer();
-            }
-        }
-
         private void recordingFileSizeTimer_Tick(object? sender, EventArgs e)
         {
             UpdateRecordingFileSizes();
@@ -743,9 +839,10 @@
         {
             UpdateRecordingFileSizes(liveFavoritesGridView);
             UpdateRecordingFileSizes(favoritesGridView);
+            UpdateStatCards();
         }
 
-        private void UpdateRecordingFileSizes(DataGridView grid)
+        private void UpdateRecordingFileSizes(ThemedGrid grid)
         {
             foreach (DataGridViewRow row in grid.Rows)
             {
@@ -755,33 +852,19 @@
                 }
 
                 row.Cells[10].Value = GetRecordingFileSizeText(favorite);
-                UpdateInstantCaptureCell(row, favorite);
-            }
-        }
+                row.Cells[11].Value = GetInstantCaptureText(favorite);
 
-        private void UpdateInstantCaptureCell(DataGridViewRow row, FavoriteItem favorite)
-        {
-            var isRecording = recordingSessions.ContainsKey(favorite.Id);
-            var needsButton = isRecording && row.Cells[11] is not DataGridViewButtonCell;
-            var needsText = !isRecording && row.Cells[11] is not DataGridViewTextBoxCell;
-
-            if (needsButton)
-            {
-                row.Cells[11] = new DataGridViewButtonCell();
+                // The REC and capture cells are custom painted, so the value change alone
+                // does not schedule a repaint.
+                grid.InvalidateRow(row.Index);
             }
-            else if (needsText)
-            {
-                row.Cells[11] = new DataGridViewTextBoxCell();
-            }
-
-            row.Cells[11].Value = GetInstantCaptureText(favorite);
-            row.Cells[11].ReadOnly = true;
         }
         private async void startRecordingMenuItem_Click(object? sender, EventArgs e)
         {
             if (TryGetSelectedFavorite(out var favorite))
             {
-                await StartRecordingAsync(favorite, verifyLiveBeforeStart: true);
+                using var lease = await webViewGate.AcquireAsync(GatePriority.Manual, shutdownCts.Token);
+                await StartRecordingAsync(favorite, verifyLiveBeforeStart: true, lease);
             }
         }
 
@@ -802,13 +885,20 @@
             }
         }
 
-        private async void toggleWatchMenuItem_Click(object? sender, EventArgs e)
+        private void toggleWatchMenuItem_Click(object? sender, EventArgs e)
         {
-            if (!TryGetSelectedFavorite(out var favorite))
+            if (TryGetSelectedFavorite(out var favorite))
             {
-                return;
+                ToggleWatch(favorite);
             }
+        }
 
+        /// <summary>
+        /// Shared by the context menu item and a direct click on the 감시 badge in either grid,
+        /// so both paths get the same recording guard and the same monitor reschedule/nudge.
+        /// </summary>
+        private void ToggleWatch(FavoriteItem favorite)
+        {
             if (favorite.Enabled && recordingSessions.ContainsKey(favorite.Id))
             {
                 SetStatus("녹화중인 모델은 Watch를 Off로 변경할 수 없습니다.");
@@ -819,22 +909,29 @@
             favorite.Enabled = !favorite.Enabled;
             if (favorite.Enabled)
             {
-                favorite.Metadata.Remove("liveStatus");
-                favorite.Metadata.Remove("liveMessage");
-                ClearLivePlaybackMetadata(favorite);
+                // Stale status would otherwise linger until the first check comes back.
+                foreach (var key in new[] { "liveStatus", "liveMessage", "streamUrl", "resolution" })
+                {
+                    favorite.Metadata.Remove(key);
+                }
             }
 
             favorite.UpdatedAt = DateTimeOffset.Now;
             favoriteStore.Save(favorites);
             RefreshFavoriteList();
-            ConfigureModelCheckTimer();
             SetStatus($"{favorite.DisplayName}: Watch {(favorite.Enabled ? "On" : "Off")}");
             AddLog($"{favorite.DisplayName}: Watch {(favorite.Enabled ? "On" : "Off")}");
 
-            if (favorite.Enabled && !recordingSessions.ContainsKey(favorite.Id))
+            if (monitorRoster.Find(favorite.Id) is { } monitor)
             {
-                await CheckFavoritesAndAutoRecordAsync(new[] { favorite }, "Watch On 방송 확인");
-                ConfigureModelCheckTimer();
+                if (favorite.Enabled)
+                {
+                    monitor.RequestImmediate("Watch On 방송 확인");
+                }
+                else
+                {
+                    monitor.Reschedule();
+                }
             }
         }
 
@@ -919,72 +1016,126 @@
                 : Enumerable.Empty<DataGridViewRow>();
         }
 
-        private async void favoritesGridView_CellContentClick(object? sender, DataGridViewCellEventArgs e)
+        private async void favoritesGridView_CellClick(object? sender, DataGridViewCellEventArgs e)
         {
-            if (sender is not DataGridView grid || e.RowIndex < 0 || e.ColumnIndex != 11)
+            if (sender is not DataGridView grid || e.RowIndex < 0)
+            {
+                return;
+            }
+
+            if (grid.Rows[e.RowIndex].Tag is not FavoriteItem favorite)
             {
                 return;
             }
 
             activeFavoritesGridView = grid;
-            if (grid.Rows[e.RowIndex].Tag is not FavoriteItem favorite
-                || !recordingSessions.ContainsKey(favorite.Id))
-            {
-                return;
-            }
 
-            await CreateHighlightCaptureAsync(favorite);
+            switch (e.ColumnIndex)
+            {
+                case 9:
+                    ToggleWatch(favorite);
+                    break;
+                case 11:
+                    if (recordingSessions.ContainsKey(favorite.Id))
+                    {
+                        await CreateHighlightCaptureAsync(favorite);
+                    }
+                    break;
+            }
         }
 
+        /// <summary>
+        /// Dispatches the semantic columns to <see cref="GridRenderers"/>. Anything not claimed
+        /// here falls through to <see cref="ThemedGrid"/>, which paints it without the focus rectangle.
+        /// </summary>
         private void favoritesGridView_CellPainting(object? sender, DataGridViewCellPaintingEventArgs e)
         {
-            if (sender is not DataGridView grid || e.RowIndex < 0 || e.ColumnIndex != 11)
+            if (sender is not ThemedGrid grid || e.Graphics is null || e.RowIndex < 0)
             {
                 return;
             }
 
-            if (grid.Rows[e.RowIndex].Tag is not FavoriteItem favorite
-                || !recordingSessions.ContainsKey(favorite.Id))
+            if (grid.Rows[e.RowIndex].Tag is not FavoriteItem favorite)
             {
                 return;
             }
 
-            if (e.Graphics is null)
+            var isRecording = recordingSessions.ContainsKey(favorite.Id);
+
+            switch (e.ColumnIndex)
             {
-                return;
+                case 3:
+                    GridRenderers.PaintNameTwoLine(e, favorite);
+                    break;
+                case 4:
+                    GridRenderers.PaintStatusBadge(e, GetFavoriteStatusText(favorite));
+                    break;
+                case 5:
+                    GridRenderers.PaintRecIndicator(e, isRecording);
+                    break;
+                case 9:
+                    GridRenderers.PaintWatchBadge(
+                        e,
+                        favorite.Enabled,
+                        hoverInteractiveCell == (e.RowIndex, e.ColumnIndex));
+                    break;
+                case 11:
+                    GridRenderers.PaintCaptureButton(
+                        e,
+                        isRecording,
+                        hoverInteractiveCell == (e.RowIndex, e.ColumnIndex));
+                    break;
             }
-
-            e.Paint(e.CellBounds, DataGridViewPaintParts.Background | DataGridViewPaintParts.Border);
-
-            var buttonBounds = Rectangle.Inflate(e.CellBounds, -14, -11);
-            if (buttonBounds.Width < 28)
-            {
-                buttonBounds = Rectangle.Inflate(e.CellBounds, -6, -11);
-            }
-
-            ButtonRenderer.DrawButton(e.Graphics, buttonBounds, "R", grid.Font, false, System.Windows.Forms.VisualStyles.PushButtonState.Normal);
-            e.Handled = true;
         }
 
         private void favoritesGridView_CellMouseMove(object? sender, DataGridViewCellMouseEventArgs e)
         {
-            if (sender is not DataGridView grid)
+            if (sender is not ThemedGrid grid)
             {
                 return;
             }
 
-            var overCaptureButton = e.RowIndex >= 0
+            var isFavoriteRow = e.RowIndex >= 0 && grid.Rows[e.RowIndex].Tag is FavoriteItem;
+            var overWatchBadge = isFavoriteRow && e.ColumnIndex == 9;
+            var overCaptureButton = isFavoriteRow
                 && e.ColumnIndex == 11
                 && grid.Rows[e.RowIndex].Tag is FavoriteItem favorite
                 && recordingSessions.ContainsKey(favorite.Id);
-            grid.Cursor = overCaptureButton ? Cursors.Hand : Cursors.Default;
+            var interactive = overWatchBadge || overCaptureButton;
+
+            grid.Cursor = interactive ? Cursors.Hand : Cursors.Default;
+
+            SetHoverInteractiveCell(grid, interactive ? (e.RowIndex, e.ColumnIndex) : (-1, -1));
         }
 
         private void favoritesGridView_CellMouseLeave(object? sender, DataGridViewCellEventArgs e)
         {
-            if (sender is DataGridView grid)
+            if (sender is ThemedGrid grid)
             {
                 grid.Cursor = Cursors.Default;
+                SetHoverInteractiveCell(grid, (-1, -1));
+            }
+        }
+
+        private void SetHoverInteractiveCell(ThemedGrid grid, (int Row, int Column) next)
+        {
+            if (hoverInteractiveCell == next)
+            {
+                return;
+            }
+
+            var previous = hoverInteractiveCell;
+            hoverInteractiveCell = next;
+
+            InvalidateInteractiveCell(grid, previous);
+            InvalidateInteractiveCell(grid, next);
+        }
+
+        private static void InvalidateInteractiveCell(ThemedGrid grid, (int Row, int Column) cell)
+        {
+            if (cell.Row >= 0 && cell.Row < grid.Rows.Count && cell.Column >= 0 && cell.Column < grid.Columns.Count)
+            {
+                grid.InvalidateCell(cell.Column, cell.Row);
             }
         }
 
@@ -1014,7 +1165,7 @@
 
             RefreshFavoriteList();
         }
-        private async Task StartRecordingAsync(FavoriteItem favorite, bool verifyLiveBeforeStart)
+        private async Task StartRecordingAsync(FavoriteItem favorite, bool verifyLiveBeforeStart, WebViewLease lease)
         {
             if (isShuttingDown || recordingSessions.ContainsKey(favorite.Id))
             {
@@ -1046,8 +1197,13 @@
                 if (verifyLiveBeforeStart)
                 {
                     AddLog($"{favorite.DisplayName}: 녹화 전 방송 URL 재확인");
-                    await PreparePandaSessionForMainAsync("녹화 전 세션 준비");
-                    await CheckFavoriteLiveAsync(favorite);
+                    await liveStatusProbe.PrepareSessionAsync(lease, "녹화 전 세션 준비", shutdownCts.Token);
+
+                    if (monitorRoster.Find(favorite.Id) is { } monitor)
+                    {
+                        await monitor.RunCheckAsync(CheckTrigger.BeforeRecording, lease, shutdownCts.Token);
+                    }
+
                     favoriteStore.Save(favorites);
 
                     if (!favorite.Metadata.TryGetValue("liveStatus", out liveStatus) || liveStatus != "live"
@@ -1065,8 +1221,8 @@
                     return;
                 }
 
-                var httpContext = await pandaLiveService.GetRecordingHttpContextAsync(loginBrowserForm.WebView);
-                AddLog($"{favorite.DisplayName}: 녹화 헤더 준비 - 쿠키 {httpContext.CookieCount}개, User-Agent {(string.IsNullOrWhiteSpace(httpContext.UserAgent) ? "없음" : "사용")}, host {GetHostForLog(streamUrl)}");
+                var httpContext = await pandaLiveService.GetRecordingHttpContextAsync(lease.WebView, shutdownCts.Token);
+                AddLog($"{favorite.DisplayName}: 녹화 헤더 준비 - 쿠키 {httpContext.CookieCount}개, User-Agent {(string.IsNullOrWhiteSpace(httpContext.UserAgent) ? "없음" : "사용")}, host {PandaMessages.HostForLog(streamUrl)}");
                 var session = await recordingService.StartAsync(favorite, streamUrl, settings.RecordingDirectory, settings.FfmpegPath, httpContext);
                 recordingSessions[favorite.Id] = session;
                 session.Process.Exited += (_, _) => QueueRecordingExited(favorite, session);
@@ -1077,6 +1233,7 @@
                 favorite.Metadata["recording"] = "true";
                 favorite.Metadata["recordingPath"] = session.OutputPath;
                 favorite.UpdatedAt = DateTimeOffset.Now;
+                monitorRoster.Find(favorite.Id)?.Reschedule();
                 favoriteStore.Save(favorites);
                 RefreshFavoriteList();
                 SetStatus("녹화를 시작했습니다.");
@@ -1097,6 +1254,7 @@
             session.Dispose();
             favorite.Metadata["recording"] = "false";
             favorite.UpdatedAt = DateTimeOffset.Now;
+            monitorRoster.Find(favorite.Id)?.Reschedule();
             favoriteStore.Save(favorites);
             RefreshFavoriteList();
             SetStatus("녹화를 중지했습니다.");
@@ -1284,15 +1442,23 @@
             try
             {
                 AddLog($"{favorite.DisplayName}: 녹화 프로세스 종료 후 방송 상태 재확인");
-                await PreparePandaSessionForMainAsync("녹화 종료 후 세션 준비");
-                await CheckFavoriteLiveAsync(favorite);
 
-                if (favorite.Metadata.TryGetValue("liveStatus", out var status) && status == "live")
+                if (monitorRoster.Find(favorite.Id) is not { } monitor)
                 {
-                    AddLog($"{favorite.DisplayName}: 방송중으로 확인되어 녹화 재시작");
-                    await StartRecordingAsync(favorite, verifyLiveBeforeStart: false);
+                    return;
                 }
 
+                using var lease = await webViewGate.AcquireAsync(GatePriority.Urgent, shutdownCts.Token);
+                await liveStatusProbe.PrepareSessionAsync(lease, "녹화 종료 후 세션 준비", shutdownCts.Token);
+
+                var outcome = await monitor.RunCheckAsync(CheckTrigger.AfterRecordingExit, lease, shutdownCts.Token);
+                if (outcome.ShouldStartRecording)
+                {
+                    AddLog($"{favorite.DisplayName}: 방송중으로 확인되어 녹화 재시작");
+                    await StartRecordingAsync(favorite, verifyLiveBeforeStart: false, lease);
+                }
+
+                monitor.Reschedule();
                 favoriteStore.Save(favorites);
                 RefreshFavoriteList();
             }
@@ -1304,13 +1470,23 @@
 
         private async Task CheckSelectedOrAllFavoritesAsync()
         {
+#if DEBUG
+            if (designPreviewActive)
+            {
+                return;
+            }
+#endif
+
             var selectedRows = GetSelectedFavoriteRows().ToList();
-            var targets = selectedRows.Count > 0
-                ? selectedRows
-                    .Select(row => row.Tag)
-                    .OfType<FavoriteItem>()
-                    .ToList()
-                : favorites.Items.Where(item => item.Enabled).ToList();
+            var selectedIds = selectedRows
+                .Select(row => row.Tag)
+                .OfType<FavoriteItem>()
+                .Select(item => item.Id)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var targets = selectedIds.Count > 0
+                ? monitorRoster.Monitors.Where(monitor => selectedIds.Contains(monitor.Id)).ToList()
+                : monitorRoster.Monitors.Where(monitor => monitor.Favorite.Enabled).ToList();
 
             if (targets.Count == 0)
             {
@@ -1322,182 +1498,21 @@
 
             try
             {
-                await PreparePandaSessionForMainAsync("방송 확인 전 세션 준비");
-                foreach (var favorite in targets)
-                {
-                    await CheckFavoriteLiveAsync(favorite);
-                    HandleRecordingOfflineCheck(favorite);
-                }
+                await monitorRoster.RunManualAsync(targets, "방송 확인", shutdownCts.Token);
 
                 favoriteStore.Save(favorites);
                 RefreshFavoriteList();
                 SetStatus($"방송 확인 완료: {targets.Count}개");
+            }
+            catch (OperationCanceledException)
+            {
+                // Shutting down.
             }
             catch (Exception ex)
             {
                 SetStatus($"방송 확인 실패: {ex.Message}");
             }
         }
-        private async Task CheckAllFavoritesAndAutoRecordAsync()
-        {
-            var now = DateTimeOffset.Now;
-            var targets = favorites.Items
-                .Where(item => IsAutoCheckTarget(item, now))
-                .ToList();
-            if (targets.Count == 0)
-            {
-                return;
-            }
-
-            await CheckFavoritesAndAutoRecordAsync(targets, "자동 방송 확인");
-        }
-
-        private bool IsAutoCheckTarget(FavoriteItem favorite, DateTimeOffset now)
-        {
-            return favorite.Enabled
-                && !recordingSessions.ContainsKey(favorite.Id)
-                && IsFavoriteDueForAutoCheck(favorite, now);
-        }
-
-        private async Task CheckFavoritesAndAutoRecordAsync(IReadOnlyCollection<FavoriteItem> targets, string reason)
-        {
-            if (targets.Count == 0)
-            {
-                return;
-            }
-
-            SetStatus($"{reason} 중: {targets.Count}개");
-
-            try
-            {
-                await PreparePandaSessionForMainAsync($"{reason} 전 세션 준비");
-                foreach (var favorite in targets)
-                {
-                    await CheckFavoriteLiveAsync(favorite);
-                    HandleRecordingOfflineCheck(favorite);
-                    if (favorite.Metadata.TryGetValue("liveStatus", out var status)
-                        && status == "live"
-                        && !recordingSessions.ContainsKey(favorite.Id))
-                    {
-                        await StartRecordingAsync(favorite, verifyLiveBeforeStart: false);
-                    }
-                }
-
-                favoriteStore.Save(favorites);
-                RefreshFavoriteList();
-                SetStatus($"{reason} 완료: {targets.Count}개");
-            }
-            catch (Exception ex)
-            {
-                SetStatus($"{reason} 실패: {ex.Message}");
-            }
-        }
-
-        private async Task CheckFavoriteLiveAsync(FavoriteItem favorite)
-        {
-            if (!IsPandaFavorite(favorite))
-            {
-                ClearLivePlaybackMetadata(favorite);
-                favorite.Metadata["liveStatus"] = "unsupported";
-                favorite.UpdatedAt = DateTimeOffset.Now;
-                AddLog($"지원하지 않는 사이트: {favorite.DisplayName} / {favorite.Platform}");
-                return;
-            }
-
-            var status = await pandaLiveService.GetLiveStatusAsync(loginBrowserForm.WebView, favorite.PlatformUserId);
-            if (!status.Success && IsSessionRelatedFailure(status.Message))
-            {
-                AddLog($"{favorite.DisplayName}: 세션 상태 재확인 중");
-                await PreparePandaSessionForMainAsync("세션 재준비");
-                status = await pandaLiveService.GetLiveStatusAsync(loginBrowserForm.WebView, favorite.PlatformUserId);
-            }
-
-            var now = DateTimeOffset.Now;
-            favorite.UpdatedAt = now;
-            favorite.Metadata["lastCheckedAt"] = now.ToString("O");
-
-            if (!status.Success)
-            {
-                ClearLivePlaybackMetadata(favorite);
-                favorite.Metadata["liveStatus"] = "error";
-                favorite.Metadata["liveMessage"] = status.Message;
-                AddLog($"{favorite.DisplayName}: 확인 실패 - {status.Message}");
-                return;
-            }
-
-            var resolutionForLog = status.Width > 0 && status.Height > 0 ? $"{status.Width}x{status.Height}" : "";
-            favorite.Metadata["liveStatus"] = status.IsLive ? "live" : "offline";
-            favorite.Metadata["liveMessage"] = status.Message;
-            if (status.IsLive)
-            {
-                favorite.Metadata["streamUrl"] = status.StreamUrl;
-                favorite.Metadata["resolution"] = resolutionForLog;
-            }
-            else
-            {
-                ClearLivePlaybackMetadata(favorite);
-            }
-
-            if (!string.IsNullOrWhiteSpace(status.Title))
-            {
-                favorite.LastBroadcastTitle = status.Title;
-            }
-
-            if (status.IsLive)
-            {
-                favorite.Metadata["offlineCheckCount"] = "0";
-                favorite.LastSeenAt = now;
-                favorite.LastLiveAt = now;
-            }
-
-            AddLog($"{favorite.DisplayName}: {(status.IsLive ? "방송중" : "오프라인")} {resolutionForLog}");
-        }
-
-        private static void ClearLivePlaybackMetadata(FavoriteItem favorite)
-        {
-            favorite.Metadata.Remove("streamUrl");
-            favorite.Metadata.Remove("resolution");
-        }
-
-        private void HandleRecordingOfflineCheck(FavoriteItem favorite)
-        {
-            if (!recordingSessions.TryGetValue(favorite.Id, out var session))
-            {
-                return;
-            }
-
-            var status = favorite.Metadata.TryGetValue("liveStatus", out var liveStatus)
-                ? liveStatus
-                : "";
-
-            if (status == "live")
-            {
-                favorite.Metadata["offlineCheckCount"] = "0";
-                return;
-            }
-
-            if (status != "offline" && status != "error")
-            {
-                return;
-            }
-
-            var currentCount = favorite.Metadata.TryGetValue("offlineCheckCount", out var raw)
-                && int.TryParse(raw, out var parsed)
-                    ? parsed
-                    : 0;
-            currentCount++;
-            favorite.Metadata["offlineCheckCount"] = currentCount.ToString();
-
-            var threshold = Math.Clamp(settings.RecordingStopAfterOfflineChecks > 0 ? settings.RecordingStopAfterOfflineChecks : 2, 1, 10);
-            AddLog($"{favorite.DisplayName}: 방송 종료 판단 {currentCount}/{threshold}");
-            if (currentCount >= threshold)
-            {
-                recordingSessions.Remove(favorite.Id);
-                StopRecording(favorite, session);
-                AddLog($"{favorite.DisplayName}: 방송 종료 판단으로 녹화 종료");
-            }
-        }
-
         private void removeFavoriteButton_Click(object sender, EventArgs e)
         {
             DeleteSelectedFavorite();
@@ -1512,6 +1527,7 @@
             }
 
             favorites.Items.RemoveAll(item => item.Id.Equals(selected.Id, StringComparison.OrdinalIgnoreCase));
+            monitorRoster.Sync(favorites);
             favoriteStore.Save(favorites);
             RefreshFavoriteList();
             SetStatus($"찜 항목을 삭제했습니다. {selected.DisplayName}");
@@ -1537,48 +1553,6 @@
                 && DateTimeOffset.TryParse(raw, out var checkedAt)
                     ? checkedAt
                     : null;
-        }
-
-        private static bool IsPandaFavorite(FavoriteItem favorite)
-        {
-            return favorite.Platform.Contains("팬더", StringComparison.OrdinalIgnoreCase)
-                || favorite.Platform.Contains("panda", StringComparison.OrdinalIgnoreCase)
-                || favorite.ProfileUrl.Contains("pandalive.co.kr", StringComparison.OrdinalIgnoreCase);
-        }
-
-        private static bool IsAdultSessionDelay(string message)
-        {
-            return message.Contains("성인", StringComparison.OrdinalIgnoreCase)
-                || message.Contains("adult", StringComparison.OrdinalIgnoreCase);
-        }
-
-        private async Task PreparePandaSessionForMainAsync(string reason)
-        {
-            try
-            {
-                var session = await pandaLiveService.PrepareSessionAsync(loginBrowserForm.WebView);
-                AddLog($"{reason}: 쿠키 {session.CookieCount}개, 사용자 정보 {(session.HasViewerUserIndex ? "확인" : "미확인")}");
-            }
-            catch (Exception ex)
-            {
-                AddLog($"{reason} 실패: {ex.Message}");
-            }
-        }
-
-        private static bool IsSessionRelatedFailure(string message)
-        {
-            return IsAdultSessionDelay(message)
-                || message.Contains("로그인", StringComparison.OrdinalIgnoreCase)
-                || message.Contains("login", StringComparison.OrdinalIgnoreCase)
-                || message.Contains("권한", StringComparison.OrdinalIgnoreCase)
-                || message.Contains("인증", StringComparison.OrdinalIgnoreCase)
-                || message.Contains("403", StringComparison.OrdinalIgnoreCase)
-                || message.Contains("Forbidden", StringComparison.OrdinalIgnoreCase);
-        }
-
-        private static string GetHostForLog(string url)
-        {
-            return Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri.Host : "unknown";
         }
 
 
@@ -1616,12 +1590,12 @@
                 return "방송중";
             }
 
-            if (status == "offline" || IsOfflineBroadcastMessage(message))
+            if (status == "offline" || PandaMessages.IsOfflineBroadcast(message))
             {
                 return "OFF LINE";
             }
 
-            if (IsSessionRelatedFailure(message))
+            if (PandaMessages.IsSessionRelatedFailure(message))
             {
                 return "로그인 체크";
             }
@@ -1637,20 +1611,6 @@
                 "error" => "확인실패",
                 _ => status
             };
-        }
-
-        private static bool IsOfflineBroadcastMessage(string message)
-        {
-            return message.Contains("종료된 방송", StringComparison.OrdinalIgnoreCase)
-                || message.Contains("종료되거나", StringComparison.OrdinalIgnoreCase)
-                || message.Contains("offline", StringComparison.OrdinalIgnoreCase);
-        }
-
-        private static bool HasPaidRoomTicketMessage(FavoriteItem favorite)
-        {
-            return favorite.Metadata.TryGetValue("liveMessage", out var message)
-                && (message.Contains("풀방 입장권", StringComparison.OrdinalIgnoreCase)
-                    || message.Contains("풀방입장권", StringComparison.OrdinalIgnoreCase));
         }
 
         private string GetRecordingText(FavoriteItem favorite)
@@ -1701,6 +1661,23 @@
             return $"{bytes / 1024d / 1024d:0.0} MB";
         }
 
+        /// <summary>
+        /// Tiered formatting for the summary card. Kept separate from <see cref="FormatFileSize"/>,
+        /// which feeds the grid cell and is expected to stay in megabytes.
+        /// </summary>
+        private static string FormatFileSizeCompact(long bytes)
+        {
+            if (bytes <= 0)
+            {
+                return "-";
+            }
+
+            var gigabytes = bytes / 1024d / 1024d / 1024d;
+            return gigabytes >= 1d
+                ? $"{gigabytes:0.00} GB"
+                : $"{bytes / 1024d / 1024d:0.0} MB";
+        }
+
 
         private static int CompareText(string? left, string? right)
         {
@@ -1742,17 +1719,85 @@
 
         private void AddLog(string message)
         {
-            if (logTextBox.IsDisposed)
+            if (logView.IsDisposed || isShuttingDown)
             {
                 return;
             }
 
-            logTextBox.AppendText($"[{DateTime.Now:HH:mm:ss}] {message}{Environment.NewLine}");
+            // RichTextBox is stricter about cross-thread access than the TextBox it replaced,
+            // and ffmpeg's Process.Exited callbacks arrive on a pool thread.
+            if (InvokeRequired)
+            {
+                BeginInvoke(() => AddLog(message));
+                return;
+            }
+
+            logView.Append(message);
         }
 
         private void SetStatus(string message)
         {
+            if (InvokeRequired)
+            {
+                BeginInvoke(() => SetStatus(message));
+                return;
+            }
+
+            headerBar.StatusText = message;
             AddLog(message);
+        }
+
+        private void clearLogButton_Click(object sender, EventArgs e)
+        {
+            logView.ClearLog();
+        }
+
+        private void toggleLogButton_Click(object sender, EventArgs e)
+        {
+            logCollapsed = !logCollapsed;
+            ApplyLogVisibility();
+        }
+
+        /// <summary>
+        /// Collapsing hides the log body and shrinks rootLayout's log row down to just the
+        /// header's own height (30px) plus logPanel's own top/bottom margin (6+14) - 50px total.
+        /// favoritePanel sits on the only Percent row left in rootLayout, so it reclaims the
+        /// freed space automatically; nothing else needs to be touched.
+        /// </summary>
+        private void ApplyLogVisibility()
+        {
+            const float expandedHeight = 172F;
+            const float collapsedHeight = 50F;
+
+            logView.Visible = !logCollapsed;
+            toggleLogButton.Text = logCollapsed ? "보이기" : "숨기기";
+
+            rootLayout.RowStyles[3] = new RowStyle(SizeType.Absolute, logCollapsed ? collapsedHeight : expandedHeight);
+            rootLayout.PerformLayout();
+        }
+
+        // ---------------------------------------------------------- IRecordingCoordinator
+        //
+        // The monitors drive recording through this narrow surface. Note that nothing here may
+        // open a modal dialog: EnsureRecordingEnvironment can, so it stays on the Form1 side of
+        // StartRecordingAsync rather than being reachable from a monitor loop.
+
+        bool IRecordingCoordinator.IsRecording(string modelId)
+        {
+            return recordingSessions.ContainsKey(modelId);
+        }
+
+        async Task IRecordingCoordinator.StartAsync(FavoriteItem favorite, WebViewLease lease, CancellationToken cancellationToken)
+        {
+            await StartRecordingAsync(favorite, verifyLiveBeforeStart: false, lease);
+        }
+
+        void IRecordingCoordinator.StopForOfflineBroadcast(FavoriteItem favorite)
+        {
+            if (recordingSessions.Remove(favorite.Id, out var session))
+            {
+                StopRecording(favorite, session);
+            }
         }
 
     }

@@ -16,7 +16,7 @@ public sealed class RecordingService
     {
         if (!File.Exists(ffmpegPath))
         {
-            throw new FileNotFoundException("?좏깮??ffmpeg.exe ?뚯씪??李얠쓣 ???놁뒿?덈떎.");
+            throw new FileNotFoundException("선택한 ffmpeg.exe 파일을 찾을 수 없습니다.");
         }
 
         var streamUrl = await SelectBestQualityAsync(masterPlaylistUrl, httpContext);
@@ -38,7 +38,7 @@ public sealed class RecordingService
         if (!process.Start())
         {
             process.Dispose();
-            throw new InvalidOperationException("ffmpeg瑜??쒖옉?섏? 紐삵뻽?듬땲??");
+            throw new InvalidOperationException("ffmpeg를 시작하지 못했습니다.");
         }
 
         var session = new RecordingSession(process, outputPath, streamUrl);
@@ -56,12 +56,12 @@ public sealed class RecordingService
     {
         if (!File.Exists(ffmpegPath))
         {
-            throw new FileNotFoundException("?좏깮??ffmpeg.exe ?뚯씪??李얠쓣 ???놁뒿?덈떎.");
+            throw new FileNotFoundException("선택한 ffmpeg.exe 파일을 찾을 수 없습니다.");
         }
 
         if (!File.Exists(sourcePath))
         {
-            throw new FileNotFoundException("?뱁솕 ?먮낯 ?뚯씪??李얠쓣 ???놁뒿?덈떎.", sourcePath);
+            throw new FileNotFoundException("녹화 원본 파일을 찾을 수 없습니다.", sourcePath);
         }
 
         seconds = Math.Clamp(seconds, 5, 3600);
@@ -81,14 +81,14 @@ public sealed class RecordingService
         AddHighlightArguments(process.StartInfo, sourcePath, outputPath, seconds);
         if (!process.Start())
         {
-            throw new InvalidOperationException("ffmpeg瑜??쒖옉?섏? 紐삵뻽?듬땲??");
+            throw new InvalidOperationException("ffmpeg를 시작하지 못했습니다.");
         }
 
         var errorText = await process.StandardError.ReadToEndAsync();
         await process.WaitForExitAsync();
         if (process.ExitCode != 0)
         {
-            throw new InvalidOperationException($"?섏씠?쇱씠??罹≪퀜 ?ㅽ뙣 (肄붾뱶 {process.ExitCode}): {TrimFfmpegError(errorText)}");
+            throw new InvalidOperationException($"하이라이트 캡쳐 실패 (코드 {process.ExitCode}): {TrimFfmpegError(errorText)}");
         }
 
         return outputPath;
@@ -292,4 +292,3 @@ public sealed class RecordingSession : IDisposable
         Process.Dispose();
     }
 }
-

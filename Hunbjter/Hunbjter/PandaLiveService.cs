@@ -6,10 +6,15 @@ namespace Hunbjter;
 
 public sealed class PandaLiveService
 {
+    // One shared client: a per-call HttpClient leaks sockets in TIME_WAIT, which matters as
+    // soon as checks run per model instead of once per batch. RecordingService.PlaylistClient
+    // already follows this pattern.
+    private static readonly HttpClient LivePlayClient = new();
+
     private static readonly Uri PandaHomeUri = new("https://www.pandalive.co.kr/");
     private static readonly Uri PandaLivePlayApiUri = new("https://api.pandalive.co.kr/v1/live/play");
 
-    public async Task<RecordingHttpContext> GetRecordingHttpContextAsync(WebView2 webView)
+    public async Task<RecordingHttpContext> GetRecordingHttpContextAsync(WebView2 webView, CancellationToken cancellationToken = default)
     {
         await WebViewProfile.EnsureCoreAsync(webView);
         var userAgent = await GetUserAgentAsync(webView);
@@ -25,13 +30,13 @@ public sealed class PandaLiveService
             CountCookiePairs(cookieHeader));
     }
 
-    public async Task<PandaSessionStatus> GetSessionStatusAsync(WebView2 webView)
+    public async Task<PandaSessionStatus> GetSessionStatusAsync(WebView2 webView, CancellationToken cancellationToken = default)
     {
         await WebViewProfile.EnsureCoreAsync(webView);
 
         try
         {
-            await EnsurePandaOriginAsync(webView);
+            await EnsurePandaOriginAsync(webView, cancellationToken);
         }
         catch
         {
@@ -46,15 +51,15 @@ public sealed class PandaLiveService
             !string.IsNullOrWhiteSpace(viewerUserIndex));
     }
 
-    public async Task<PandaSessionStatus> PrepareSessionAsync(WebView2 webView)
+    public async Task<PandaSessionStatus> PrepareSessionAsync(WebView2 webView, CancellationToken cancellationToken = default)
     {
         await WebViewProfile.EnsureCoreAsync(webView);
-        await NavigateAndWaitAsync(webView, PandaHomeUri.ToString(), TimeSpan.FromSeconds(20));
-        await Task.Delay(800);
-        return await GetSessionStatusAsync(webView);
+        await NavigateAndWaitAsync(webView, PandaHomeUri.ToString(), TimeSpan.FromSeconds(20), cancellationToken);
+        await Task.Delay(800, cancellationToken);
+        return await GetSessionStatusAsync(webView, cancellationToken);
     }
 
-    public async Task<PandaLiveStatus> GetLiveStatusAsync(WebView2 webView, string userId)
+    public async Task<PandaLiveStatus> GetLiveStatusAsync(WebView2 webView, string userId, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(userId))
         {
@@ -65,15 +70,15 @@ public sealed class PandaLiveService
         try
         {
             await WebViewProfile.EnsureCoreAsync(webView);
-            var body = await RequestLivePlayThroughNetworkAsync(webView, userId);
+            var body = await RequestLivePlayThroughNetworkAsync(webView, userId, cancellationToken);
             return ParseLivePlayResponse(body, userId);
         }
         catch (Exception browserEx)
         {
             try
             {
-                await EnsurePandaOriginAsync(webView);
-                var body = await RequestLivePlayByHttpAsync(webView, userId);
+                await EnsurePandaOriginAsync(webView, cancellationToken);
+                var body = await RequestLivePlayByHttpAsync(webView, userId, cancellationToken);
                 return ParseLivePlayResponse(body, userId);
             }
             catch (Exception httpEx)
@@ -89,7 +94,7 @@ public sealed class PandaLiveService
 
     // The page runs its API request in a separate execution context. DevTools sees that
     // request reliably, and the response body must be read as soon as it is received.
-    private static async Task<string> RequestLivePlayThroughNetworkAsync(WebView2 webView, string userId)
+    private static async Task<string> RequestLivePlayThroughNetworkAsync(WebView2 webView, string userId, CancellationToken cancellationToken)
     {
         var completion = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
         var requestReceiver = webView.CoreWebView2.GetDevToolsProtocolEventReceiver("Network.requestWillBeSent");
@@ -159,9 +164,12 @@ public sealed class PandaLiveService
         responseReceiver.DevToolsProtocolEventReceived += ResponseHandler;
         try
         {
+            await using var cancellation = cancellationToken.Register(
+                static state => ((TaskCompletionSource<string>)state!).TrySetCanceled(), completion);
+
             await webView.CoreWebView2.CallDevToolsProtocolMethodAsync("Network.enable", "{}");
             webView.CoreWebView2.Navigate($"https://www.pandalive.co.kr/play/{Uri.EscapeDataString(userId)}");
-            return await completion.Task.WaitAsync(TimeSpan.FromSeconds(30));
+            return await completion.Task.WaitAsync(TimeSpan.FromSeconds(30), cancellationToken);
         }
         finally
         {
@@ -326,7 +334,7 @@ public sealed class PandaLiveService
         }
     }
 
-    private static async Task EnsurePandaOriginAsync(WebView2 webView)
+    private static async Task EnsurePandaOriginAsync(WebView2 webView, CancellationToken cancellationToken)
     {
         var currentUrl = webView.Source?.ToString() ?? "";
         if (currentUrl.Contains("pandalive.co.kr", StringComparison.OrdinalIgnoreCase))
@@ -344,7 +352,7 @@ public sealed class PandaLiveService
         try
         {
             webView.CoreWebView2.Navigate(PandaHomeUri.ToString());
-            await completion.Task.WaitAsync(TimeSpan.FromSeconds(20));
+            await completion.Task.WaitAsync(TimeSpan.FromSeconds(20), cancellationToken);
         }
         finally
         {
@@ -352,7 +360,7 @@ public sealed class PandaLiveService
         }
     }
 
-    private static async Task NavigateAndWaitAsync(WebView2 webView, string url, TimeSpan timeout)
+    private static async Task NavigateAndWaitAsync(WebView2 webView, string url, TimeSpan timeout, CancellationToken cancellationToken)
     {
         var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -365,7 +373,7 @@ public sealed class PandaLiveService
         try
         {
             webView.CoreWebView2.Navigate(url);
-            await completion.Task.WaitAsync(timeout);
+            await completion.Task.WaitAsync(timeout, cancellationToken);
         }
         finally
         {
@@ -373,9 +381,8 @@ public sealed class PandaLiveService
         }
     }
 
-    private static async Task<string> RequestLivePlayByHttpAsync(WebView2 webView, string userId)
+    private static async Task<string> RequestLivePlayByHttpAsync(WebView2 webView, string userId, CancellationToken cancellationToken)
     {
-        using var httpClient = new HttpClient();
         using var request = new HttpRequestMessage(HttpMethod.Post, PandaLivePlayApiUri);
 
         var cookieHeader = await BuildCookieHeaderAsync(webView);
@@ -411,8 +418,8 @@ public sealed class PandaLiveService
             ["action"] = "watch"
         });
 
-        using var response = await httpClient.SendAsync(request);
-        var body = await response.Content.ReadAsStringAsync();
+        using var response = await LivePlayClient.SendAsync(request, cancellationToken);
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             var uiText = string.IsNullOrWhiteSpace(viewerUserIndex) ? "ui 없음" : $"ui {viewerUserIndex}";

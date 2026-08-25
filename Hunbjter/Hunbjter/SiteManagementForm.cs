@@ -1,29 +1,27 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 
 namespace Hunbjter;
 
-public sealed class SiteManagementForm : Form
+public sealed class SiteManagementForm : ThemedDialog
 {
-    private const string PlusTabText = "+";
-
     private readonly SiteSettingsStore siteSettingsStore;
     private readonly LoginSettingsStore legacySettingsStore;
-    private readonly TableLayoutPanel rootLayout = new();
-    private readonly TableLayoutPanel contentLayout = new();
-    private readonly TableLayoutPanel siteColumnLayout = new();
-    private readonly TableLayoutPanel siteTabHeaderLayout = new();
+    private readonly BufferedTableLayoutPanel rootLayout = new();
+    private readonly BufferedTableLayoutPanel contentLayout = new();
+    private readonly BufferedTableLayoutPanel siteColumnLayout = new();
+    private readonly BufferedTableLayoutPanel siteTabHeaderLayout = new();
     private readonly FlowLayoutPanel siteTabStrip = new();
     private readonly FlowLayoutPanel siteActionPanel = new();
-    private readonly Button addSiteButton = new();
-    private readonly Button deleteSiteButton = new();
+    private readonly ThemedButton addSiteButton = new();
+    private readonly ThemedButton deleteSiteButton = new();
     private readonly Panel siteEditorHost = new();
     private readonly Panel browserFrame = new();
     private readonly WebView2 webView = new();
     private readonly FlowLayoutPanel bottomButtonPanel = new();
-    private readonly Button saveButton = new();
-    private readonly Button closeButton = new();
+    private readonly ThemedButton saveButton = new();
+    private readonly ThemedButton closeButton = new();
     private readonly FavoriteStore favoriteStore = new();
     private readonly HashSet<string> capturedNetworkUrls = new(StringComparer.OrdinalIgnoreCase);
 
@@ -51,7 +49,7 @@ public sealed class SiteManagementForm : Form
         {
             document.Sites.Add(new SiteProfile
             {
-                Name = string.IsNullOrWhiteSpace(legacySettings.LoginUrl) ? Texts.Panda : Texts.Panda,
+                Name = Texts.Panda,
                 LoginUrl = legacySettings.LoginUrl,
                 UserId = legacySettings.UserId,
                 EncryptedPassword = legacySettings.EncryptedPassword
@@ -68,16 +66,16 @@ public sealed class SiteManagementForm : Form
     private void InitializeComponent()
     {
         Text = Texts.SiteManagement;
-        StartPosition = FormStartPosition.CenterParent;
-        Size = new Size(980, 640);
-        MinimumSize = new Size(820, 520);
+        Size = new Size(1040, 700);
+        MinimumSize = new Size(880, 560);
 
+        rootLayout.BackColor = Theme.Background;
         rootLayout.ColumnCount = 1;
         rootLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
         rootLayout.RowCount = 1;
         rootLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
         rootLayout.Dock = DockStyle.Fill;
-        rootLayout.Padding = new Padding(24);
+        rootLayout.Padding = new Padding(22);
 
         contentLayout.ColumnCount = 2;
         contentLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40F));
@@ -88,7 +86,7 @@ public sealed class SiteManagementForm : Form
         siteColumnLayout.ColumnCount = 1;
         siteColumnLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
         siteColumnLayout.Dock = DockStyle.Fill;
-        siteColumnLayout.Margin = new Padding(0, 0, 20, 0);
+        siteColumnLayout.Margin = new Padding(0, 0, 18, 0);
         siteColumnLayout.RowCount = 2;
         siteColumnLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         siteColumnLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
@@ -98,8 +96,8 @@ public sealed class SiteManagementForm : Form
         siteTabHeaderLayout.RowCount = 4;
         siteTabHeaderLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         siteTabHeaderLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 12F));
+        siteTabHeaderLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40F));
         siteTabHeaderLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 38F));
-        siteTabHeaderLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F));
         siteTabHeaderLayout.AutoSize = true;
         siteTabHeaderLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink;
         siteTabHeaderLayout.Dock = DockStyle.Top;
@@ -107,29 +105,30 @@ public sealed class SiteManagementForm : Form
 
         siteTabStrip.AutoSize = true;
         siteTabStrip.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        siteTabStrip.BackColor = Color.Transparent;
         siteTabStrip.Dock = DockStyle.Top;
         siteTabStrip.Margin = new Padding(0, 0, 0, 2);
         siteTabStrip.Padding = new Padding(0);
         siteTabStrip.AutoScroll = false;
         siteTabStrip.WrapContents = true;
 
+        siteActionPanel.BackColor = Color.Transparent;
         siteActionPanel.Dock = DockStyle.Fill;
         siteActionPanel.FlowDirection = FlowDirection.LeftToRight;
         siteActionPanel.Margin = new Padding(0, 4, 0, 0);
         siteActionPanel.Padding = new Padding(0);
         siteActionPanel.WrapContents = false;
 
-        addSiteButton.Size = new Size(82, 28);
-        addSiteButton.Margin = new Padding(0, 0, 6, 0);
-        addSiteButton.Text = $"{PlusTabText} \uCD94\uAC00";
-        addSiteButton.Font = new Font(Font.FontFamily, 9F, FontStyle.Bold);
-        addSiteButton.UseVisualStyleBackColor = true;
+        addSiteButton.Margin = new Padding(0, 0, 8, 0);
+        addSiteButton.Size = new Size(88, 32);
+        addSiteButton.Text = "+ 추가";
+        addSiteButton.Variant = ButtonVariant.Secondary;
         addSiteButton.Click += (_, _) => AddSiteTab();
 
-        deleteSiteButton.Size = new Size(82, 28);
         deleteSiteButton.Margin = new Padding(0);
-        deleteSiteButton.Text = "\uC0AD\uC81C";
-        deleteSiteButton.UseVisualStyleBackColor = true;
+        deleteSiteButton.Size = new Size(88, 32);
+        deleteSiteButton.Text = "삭제";
+        deleteSiteButton.Variant = ButtonVariant.Danger;
         deleteSiteButton.Click += (_, _) =>
         {
             if (selectedSite is not null)
@@ -138,16 +137,18 @@ public sealed class SiteManagementForm : Form
             }
         };
 
-        siteEditorHost.BorderStyle = BorderStyle.FixedSingle;
+        siteEditorHost.BackColor = Theme.Surface;
         siteEditorHost.Dock = DockStyle.Fill;
         siteEditorHost.Margin = new Padding(0);
+        siteEditorHost.Padding = new Padding(1);
 
         siteActionPanel.Controls.Add(addSiteButton);
         siteActionPanel.Controls.Add(deleteSiteButton);
         siteTabHeaderLayout.Controls.Add(siteTabStrip, 0, 0);
+
         var siteSeparator = new Panel
         {
-            BackColor = Color.FromArgb(210, 210, 210),
+            BackColor = Theme.Border,
             Dock = DockStyle.Top,
             Height = 1,
             Margin = new Padding(0, 6, 0, 5)
@@ -159,7 +160,7 @@ public sealed class SiteManagementForm : Form
         siteColumnLayout.Controls.Add(siteTabHeaderLayout, 0, 0);
         siteColumnLayout.Controls.Add(siteEditorHost, 0, 1);
 
-        var browserColumnLayout = new TableLayoutPanel
+        var browserColumnLayout = new BufferedTableLayoutPanel
         {
             ColumnCount = 1,
             Dock = DockStyle.Fill,
@@ -167,10 +168,10 @@ public sealed class SiteManagementForm : Form
             RowCount = 2
         };
         browserColumnLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        browserColumnLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 38F));
+        browserColumnLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42F));
         browserColumnLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
-        browserFrame.BorderStyle = BorderStyle.FixedSingle;
+        browserFrame.BackColor = Theme.Border;
         browserFrame.Dock = DockStyle.Fill;
         browserFrame.Margin = new Padding(0);
         browserFrame.Padding = new Padding(1);
@@ -187,17 +188,21 @@ public sealed class SiteManagementForm : Form
 
         bottomButtonPanel.Anchor = AnchorStyles.Right;
         bottomButtonPanel.AutoSize = true;
+        bottomButtonPanel.BackColor = Color.Transparent;
+        bottomButtonPanel.FlowDirection = FlowDirection.RightToLeft;
         bottomButtonPanel.Controls.Add(saveButton);
         bottomButtonPanel.Controls.Add(closeButton);
 
+        saveButton.Margin = new Padding(8, 0, 0, 0);
+        saveButton.Size = new Size(88, 32);
         saveButton.Text = Texts.Confirm;
-        saveButton.Size = new Size(82, 28);
-        saveButton.UseVisualStyleBackColor = true;
+        saveButton.Variant = ButtonVariant.Primary;
         saveButton.Click += saveButton_Click;
 
+        closeButton.Margin = new Padding(8, 0, 0, 0);
+        closeButton.Size = new Size(88, 32);
         closeButton.Text = Texts.Cancel;
-        closeButton.Size = new Size(82, 28);
-        closeButton.UseVisualStyleBackColor = true;
+        closeButton.Variant = ButtonVariant.Ghost;
         closeButton.Click += (_, _) => Close();
 
         browserColumnLayout.Controls.Add(bottomButtonPanel, 0, 0);
@@ -209,7 +214,7 @@ public sealed class SiteManagementForm : Form
 
     private Control CreateTopConnectButtonHost()
     {
-        var host = new TableLayoutPanel
+        var host = new BufferedTableLayoutPanel
         {
             ColumnCount = 2,
             Dock = DockStyle.Fill,
@@ -221,19 +226,19 @@ public sealed class SiteManagementForm : Form
         host.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 112F));
         host.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
-        var connectButton = new Button
+        var connectButton = new ThemedButton
         {
             Anchor = AnchorStyles.Top | AnchorStyles.Right,
-            Size = new Size(112, 28),
+            Size = new Size(112, 32),
             Text = Texts.Connect,
-            UseVisualStyleBackColor = true
+            Variant = ButtonVariant.Primary
         };
         connectButton.Click += async (_, _) => await ConnectSelectedSiteAsync(connectButton);
         host.Controls.Add(connectButton, 1, 0);
         return host;
     }
 
-    private async Task ConnectSelectedSiteAsync(Button connectButton)
+    private async Task ConnectSelectedSiteAsync(ThemedButton connectButton)
     {
         if (selectedSite is null)
         {
@@ -249,13 +254,7 @@ public sealed class SiteManagementForm : Form
     {
         if (DialogResult != DialogResult.OK && HasUnsavedChanges())
         {
-            var result = MessageBox.Show(
-                this,
-                "?�?�하지 ?�고 ?�을까요?",
-                Text,
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Question,
-                MessageBoxDefaultButton.Button2);
+            var result = ConfirmDialog.Ask(this, Text, "저장하지 않고 닫을까요?", "변경한 사이트 정보가 사라집니다.");
 
             if (result != DialogResult.Yes)
             {
@@ -297,40 +296,16 @@ public sealed class SiteManagementForm : Form
         ShowSelectedSite();
     }
 
-    private Button CreateSiteButton(SiteProfile site)
+    private ThemedButton CreateSiteButton(SiteProfile site)
     {
-        var isSelected = site == selectedSite;
-        var button = new Button
+        var button = new ThemedButton
         {
-            FlatStyle = FlatStyle.Flat,
-            Margin = new Padding(0, 0, 3, 3),
-            Size = new Size(96, 28),
+            Margin = new Padding(0, 0, 6, 6),
+            Size = new Size(104, 32),
             Tag = site,
             Text = DisplayName(site),
-            TextAlign = ContentAlignment.MiddleCenter,
-            UseVisualStyleBackColor = false
+            Variant = site == selectedSite ? ButtonVariant.Primary : ButtonVariant.Secondary
         };
-
-        if (isSelected)
-        {
-            button.BackColor = Color.FromArgb(37, 99, 235);
-            button.ForeColor = Color.White;
-            button.Font = new Font(Font, FontStyle.Bold);
-            button.FlatAppearance.BorderColor = Color.FromArgb(30, 64, 175);
-            button.FlatAppearance.BorderSize = 2;
-            button.FlatAppearance.MouseOverBackColor = Color.FromArgb(37, 99, 235);
-            button.FlatAppearance.MouseDownBackColor = Color.FromArgb(29, 78, 216);
-        }
-        else
-        {
-            button.BackColor = SystemColors.Control;
-            button.ForeColor = SystemColors.ControlText;
-            button.Font = new Font(Font, FontStyle.Regular);
-            button.FlatAppearance.BorderColor = Color.FromArgb(180, 180, 180);
-            button.FlatAppearance.BorderSize = 1;
-            button.FlatAppearance.MouseOverBackColor = Color.FromArgb(229, 241, 251);
-            button.FlatAppearance.MouseDownBackColor = Color.FromArgb(204, 228, 247);
-        }
 
         button.Click += (_, _) =>
         {
@@ -355,39 +330,39 @@ public sealed class SiteManagementForm : Form
 
     private Control CreateSiteEditor(SiteProfile site)
     {
-        var editorLayout = new TableLayoutPanel
+        var editorLayout = new BufferedTableLayoutPanel
         {
+            BackColor = Theme.Surface,
             ColumnCount = 1,
             Dock = DockStyle.Fill,
-            Padding = new Padding(12, 16, 12, 12)
+            Padding = new Padding(16, 18, 16, 14),
+            RowCount = 2
         };
 
         editorLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        editorLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 318F));
+        editorLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 320F));
         editorLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
-        var panel = new TableLayoutPanel
+        var panel = new BufferedTableLayoutPanel
         {
+            BackColor = Theme.Surface,
             ColumnCount = 1,
             Dock = DockStyle.Fill,
-            Margin = new Padding(0)
+            Margin = new Padding(0),
+            RowCount = 6
         };
 
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 54F));
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 54F));
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 54F));
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 54F));
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 46F));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 62F));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 62F));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 62F));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 62F));
         panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 36F));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F));
 
         var nameTextBox = CreateTextBox(Texts.SiteName);
         nameTextBox.Text = site.Name;
-        nameTextBox.TextChanged += (_, _) =>
-        {
-            site.Name = nameTextBox.Text.Trim();
-        };
+        nameTextBox.TextChanged += (_, _) => site.Name = nameTextBox.Text.Trim();
 
         var urlTextBox = CreateTextBox("url");
         urlTextBox.Text = site.LoginUrl;
@@ -400,90 +375,26 @@ public sealed class SiteManagementForm : Form
         var passwordTextBox = CreateTextBox("pw");
         passwordTextBox.PasswordChar = '*';
         passwordTextBox.Text = LoginSettingsStore.UnprotectPassword(site.EncryptedPassword);
-        passwordTextBox.TextChanged += (_, _) => site.EncryptedPassword = LoginSettingsStore.ProtectPassword(passwordTextBox.Text);var captureButton = new Button
-        {
-            Size = new Size(112, 34),
-            Text = "\uC694\uCCAD\uCEA1\uCC98",
-            Visible = false,
-            UseVisualStyleBackColor = true
-        };
+        passwordTextBox.TextChanged += (_, _) => site.EncryptedPassword = LoginSettingsStore.ProtectPassword(passwordTextBox.Text);
 
         var statusLabel = new Label
         {
             AutoEllipsis = true,
+            BackColor = Color.Transparent,
             Dock = DockStyle.Fill,
+            ForeColor = Theme.TextSecondary,
             Text = Texts.EnterSiteInfo,
             TextAlign = ContentAlignment.MiddleLeft
         };
-        captureButton.Click += async (_, _) => await ToggleNetworkCaptureAsync(captureButton, statusLabel);
 
         panel.Controls.Add(CreateFieldPanel(Texts.SiteNameLabel, nameTextBox), 0, 0);
         panel.Controls.Add(CreateFieldPanel(Texts.UrlLabel, urlTextBox), 0, 1);
         panel.Controls.Add(CreateFieldPanel(Texts.IdLabel, idTextBox), 0, 2);
         panel.Controls.Add(CreateFieldPanel(Texts.PasswordLabel, passwordTextBox), 0, 3);
-        panel.Controls.Add(statusLabel, 0, 6);
+        panel.Controls.Add(statusLabel, 0, 5);
 
         editorLayout.Controls.Add(panel, 0, 0);
-
         return editorLayout;
-    }
-
-    private Control CreateModelManagementPanel(SiteProfile site, Label statusLabel)
-    {
-        var groupBox = new GroupBox
-        {
-            Dock = DockStyle.Fill,
-            Margin = new Padding(0, 8, 0, 0),
-            Text = "\uBAA8\uB378\uAD00\uB9AC"
-        };
-
-        var layout = new TableLayoutPanel
-        {
-            ColumnCount = 3,
-            Dock = DockStyle.Top,
-            Padding = new Padding(10, 16, 10, 10),
-            RowCount = 2
-        };
-
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 82F));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 52F));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F));
-
-        var nicknameTextBox = CreateTextBox("\uB2C9\uB124\uC784");
-        var idTextBox = CreateTextBox("\uC544\uC774\uB514");
-        var addButton = new Button
-        {
-            Dock = DockStyle.Bottom,
-            Text = "\uCD94\uAC00",
-            UseVisualStyleBackColor = true
-        };
-
-        var hintLabel = new Label
-        {
-            AutoEllipsis = true,
-            Dock = DockStyle.Fill,
-            Text = "\uBAA8\uB378 \uC815\uBCF4\uB294 \uB514\uC790\uC778 \uD655\uC778 \uD6C4 \uC800\uC7A5\uC18C\uC5D0 \uC5F0\uACB0\uD569\uB2C8\uB2E4.",
-            TextAlign = ContentAlignment.MiddleLeft
-        };
-
-        addButton.Click += (_, _) =>
-        {
-            AddModelToFavorites(site, nicknameTextBox.Text, idTextBox.Text, statusLabel);
-            nicknameTextBox.Clear();
-            idTextBox.Clear();
-            nicknameTextBox.Focus();
-        };
-
-        layout.Controls.Add(CreateFieldPanel("\uB2C9\uB124\uC784", nicknameTextBox), 0, 0);
-        layout.Controls.Add(CreateFieldPanel("\uC544\uC774\uB514", idTextBox), 1, 0);
-        layout.Controls.Add(addButton, 2, 0);
-        layout.Controls.Add(hintLabel, 0, 1);
-        layout.SetColumnSpan(hintLabel, 3);
-
-        groupBox.Controls.Add(layout);
-        return groupBox;
     }
 
     private void AddModelToFavorites(SiteProfile site, string nickname, string platformUserId, Label statusLabel)
@@ -493,7 +404,7 @@ public sealed class SiteManagementForm : Form
 
         if (string.IsNullOrWhiteSpace(nickname) || string.IsNullOrWhiteSpace(platformUserId))
         {
-            statusLabel.Text = "\uB2C9\uB124\uC784\uACFC \uC544\uC774\uB514\uB97C \uBAA8\uB450 \uC785\uB825\uD558\uC138\uC694.";
+            statusLabel.Text = "닉네임과 아이디를 모두 입력하세요.";
             return;
         }
 
@@ -517,7 +428,7 @@ public sealed class SiteManagementForm : Form
                 UpdatedAt = now
             });
 
-            statusLabel.Text = string.Format("\uBAA9\uB85D\uC5D0 \uCD94\uAC00\uD588\uC2B5\uB2C8\uB2E4: {0}", nickname);
+            statusLabel.Text = $"목록에 추가했습니다: {nickname}";
         }
         else
         {
@@ -528,7 +439,7 @@ public sealed class SiteManagementForm : Form
             existing.LastKnownUrl = existing.ProfileUrl;
             existing.UpdatedAt = now;
 
-            statusLabel.Text = string.Format("\uAE30\uC874 \uBAA9\uB85D\uC744 \uAC31\uC2E0\uD588\uC2B5\uB2C8\uB2E4: {0}", nickname);
+            statusLabel.Text = $"기존 목록을 갱신했습니다: {nickname}";
         }
 
         favoriteStore.Save(favorites);
@@ -559,44 +470,28 @@ public sealed class SiteManagementForm : Form
         return builder.Uri.ToString();
     }
 
-    private static TextBox CreateTextBox(string placeholder)
+    private static BufferedTableLayoutPanel CreateFieldPanel(string labelText, TextBox textBox)
     {
-        return new TextBox
-        {
-            Anchor = AnchorStyles.Left | AnchorStyles.Right,
-            PlaceholderText = placeholder,
-            TextAlign = HorizontalAlignment.Left
-        };
-    }
-
-    private static TableLayoutPanel CreateFieldPanel(string labelText, TextBox textBox)
-    {
-        var panel = new TableLayoutPanel
+        var panel = new BufferedTableLayoutPanel
         {
             ColumnCount = 1,
             Dock = DockStyle.Fill,
-            Margin = new Padding(0, 0, 0, 6)
+            Margin = new Padding(0, 0, 0, 8)
         };
 
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
         panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 20F));
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 28F));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 32F));
 
-        var label = new Label
-        {
-            Dock = DockStyle.Fill,
-            Text = labelText,
-            TextAlign = ContentAlignment.BottomLeft
-        };
-
-        textBox.Dock = DockStyle.Fill;
-
-        panel.Controls.Add(label, 0, 0);
-        panel.Controls.Add(textBox, 0, 1);
+        panel.Controls.Add(CreateLabel(labelText, Theme.Small, Theme.TextMuted), 0, 0);
+        panel.Controls.Add(
+            new InputHost(textBox) { Anchor = AnchorStyles.Left | AnchorStyles.Right, Margin = new Padding(0) },
+            0,
+            1);
         return panel;
     }
 
-    private async Task ConnectAsync(SiteProfile site, string password, Button connectButton, Label statusLabel)
+    private async Task ConnectAsync(SiteProfile site, string password, ThemedButton connectButton, Label statusLabel)
     {
         if (string.IsNullOrWhiteSpace(password))
         {
@@ -626,7 +521,7 @@ public sealed class SiteManagementForm : Form
         }
     }
 
-    private async Task ToggleNetworkCaptureAsync(Button captureButton, Label statusLabel)
+    private async Task ToggleNetworkCaptureAsync(ThemedButton captureButton, Label statusLabel)
     {
         if (networkCaptureEnabled)
         {
@@ -637,7 +532,7 @@ public sealed class SiteManagementForm : Form
         await StartNetworkCaptureAsync(captureButton, statusLabel);
     }
 
-    private async Task StartNetworkCaptureAsync(Button captureButton, Label statusLabel)
+    private async Task StartNetworkCaptureAsync(ThemedButton captureButton, Label statusLabel)
     {
         await WebViewProfile.EnsureCoreAsync(webView);
 
@@ -653,11 +548,11 @@ public sealed class SiteManagementForm : Form
 
         await webView.CoreWebView2.CallDevToolsProtocolMethodAsync("Network.enable", "{}");
         networkCaptureEnabled = true;
-        captureButton.Text = "\uCEA1\uCC98\uC911\uC9C0";
-        statusLabel.Text = $"\uC694\uCCAD \uCEA1\uCC98 \uC2DC\uC791: {networkCapturePath}";
+        captureButton.Text = "캡쳐중지";
+        statusLabel.Text = $"요청 캡쳐 시작: {networkCapturePath}";
     }
 
-    private async Task StopNetworkCaptureAsync(Button captureButton, Label statusLabel)
+    private async Task StopNetworkCaptureAsync(ThemedButton captureButton, Label statusLabel)
     {
         if (requestWillBeSentReceiver is not null)
         {
@@ -672,7 +567,7 @@ public sealed class SiteManagementForm : Form
         requestWillBeSentReceiver = null;
         responseReceivedReceiver = null;
         networkCaptureEnabled = false;
-        captureButton.Text = "\uC694\uCCAD\uCEA1\uCC98";
+        captureButton.Text = "요청캡쳐";
 
         try
         {
@@ -686,7 +581,7 @@ public sealed class SiteManagementForm : Form
             // Ignore DevTools shutdown errors while closing or navigating.
         }
 
-        statusLabel.Text = $"\uC694\uCCAD \uCEA1\uCC98 \uC2DC\uC791: {networkCapturePath}";
+        statusLabel.Text = $"요청 캡쳐 중지: {networkCapturePath}";
     }
 
     private void NetworkRequestWillBeSent(object? sender, CoreWebView2DevToolsProtocolEventReceivedEventArgs e)
@@ -919,9 +814,10 @@ public sealed class SiteManagementForm : Form
 
     private void DeleteSite(SiteProfile site)
     {
-        var result = ShowConfirmDialog(
-            string.Format(Texts.DeleteConfirm, DisplayName(site)),
-            Texts.DeleteSite);
+        var result = ConfirmDialog.Ask(
+            this,
+            Texts.DeleteSite,
+            string.Format(Texts.DeleteConfirm, DisplayName(site)));
 
         if (result != DialogResult.Yes)
         {
@@ -938,70 +834,6 @@ public sealed class SiteManagementForm : Form
         }
 
         ReloadTabs();
-    }
-
-    private DialogResult ShowConfirmDialog(string message, string title)
-    {
-        using var dialog = new Form
-        {
-            Text = title,
-            StartPosition = FormStartPosition.CenterParent,
-            FormBorderStyle = FormBorderStyle.FixedDialog,
-            MinimizeBox = false,
-            MaximizeBox = false,
-            ShowInTaskbar = false,
-            ClientSize = new Size(320, 130)
-        };
-
-        var layout = new TableLayoutPanel
-        {
-            ColumnCount = 1,
-            RowCount = 2,
-            Dock = DockStyle.Fill,
-            Padding = new Padding(18)
-        };
-        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F));
-
-        var messageLabel = new Label
-        {
-            AutoSize = false,
-            Dock = DockStyle.Fill,
-            Text = message,
-            TextAlign = ContentAlignment.MiddleLeft
-        };
-
-        var buttonPanel = new FlowLayoutPanel
-        {
-            Anchor = AnchorStyles.Right,
-            AutoSize = true,
-            FlowDirection = FlowDirection.LeftToRight,
-            Margin = new Padding(0)
-        };
-
-        var yesButton = new Button
-        {
-            DialogResult = DialogResult.Yes,
-            Size = new Size(82, 28),
-            Text = "\uC608"
-        };
-
-        var noButton = new Button
-        {
-            DialogResult = DialogResult.No,
-            Size = new Size(82, 28),
-            Text = "\uC544\uB2C8\uC694"
-        };
-
-        buttonPanel.Controls.Add(yesButton);
-        buttonPanel.Controls.Add(noButton);
-        layout.Controls.Add(messageLabel, 0, 0);
-        layout.Controls.Add(buttonPanel, 0, 1);
-        dialog.Controls.Add(layout);
-        dialog.AcceptButton = yesButton;
-        dialog.CancelButton = noButton;
-
-        return dialog.ShowDialog(this);
     }
 
     private void saveButton_Click(object? sender, EventArgs e)
@@ -1046,11 +878,6 @@ public sealed class SiteManagementForm : Form
         };
     }
 
-    private static string BuildTabText(SiteProfile site)
-    {
-        return $"{DisplayName(site)}  -";
-    }
-
     private static string DisplayName(SiteProfile site)
     {
         return string.IsNullOrWhiteSpace(site.Name) ? Texts.NewSite : site.Name.Trim();
@@ -1058,23 +885,23 @@ public sealed class SiteManagementForm : Form
 
     private static class Texts
     {
-        public const string SiteManagement = "\uC0AC\uC774\uD2B8\uAD00\uB9AC";
-        public const string Panda = "\uD32C\uB354";
-        public const string Confirm = "\uD655\uC778";
-        public const string Cancel = "\uCDE8\uC18C";
-        public const string Connect = "\uC5F0\uACB0";
-        public const string SiteName = "\uC0AC\uC774\uD2B8\uBA85";
-        public const string SiteNameLabel = "\uC0AC\uC774\uD2B8\uBA85";
+        public const string SiteManagement = "사이트관리";
+        public const string Panda = "팬더";
+        public const string Confirm = "확인";
+        public const string Cancel = "취소";
+        public const string Connect = "연결";
+        public const string SiteName = "사이트명";
+        public const string SiteNameLabel = "사이트명";
         public const string UrlLabel = "URL";
-        public const string IdLabel = "\uC544\uC774\uB514";
-        public const string PasswordLabel = "\uBE44\uBC00\uBC88\uD638";
-        public const string EnterSiteInfo = "\uC0AC\uC774\uD2B8 \uC815\uBCF4\uB97C \uC785\uB825\uD55C \uB4A4 \uC5F0\uACB0\uC744 \uB204\uB974\uC138\uC694.";
-        public const string EnterPassword = "\uBE44\uBC00\uBC88\uD638\uB97C \uC785\uB825\uD558\uC138\uC694.";
-        public const string Connecting = "\uC5F0\uACB0 \uC911...";
-        public const string ConnectFailed = "\uC5F0\uACB0 \uC2E4\uD328: {0}";
-        public const string NewSiteName = "\uC0AC\uC774\uD2B8 {0}";
-        public const string NewSite = "\uC0C8 \uC0AC\uC774\uD2B8";
-        public const string DeleteSite = "\uC0AC\uC774\uD2B8 \uC0AD\uC81C";
-        public const string DeleteConfirm = "'{0}' \uC0AC\uC774\uD2B8\uB97C \uC0AD\uC81C\uD560\uAE4C\uC694?";
+        public const string IdLabel = "아이디";
+        public const string PasswordLabel = "비밀번호";
+        public const string EnterSiteInfo = "사이트 정보를 입력한 뒤 연결을 누르세요.";
+        public const string EnterPassword = "비밀번호를 입력하세요.";
+        public const string Connecting = "연결 중...";
+        public const string ConnectFailed = "연결 실패: {0}";
+        public const string NewSiteName = "사이트 {0}";
+        public const string NewSite = "새 사이트";
+        public const string DeleteSite = "사이트 삭제";
+        public const string DeleteConfirm = "'{0}' 사이트를 삭제할까요?";
     }
 }

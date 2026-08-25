@@ -1,8 +1,8 @@
-using Microsoft.Web.WebView2.WinForms;
+﻿using Microsoft.Web.WebView2.WinForms;
 
 namespace Hunbjter;
 
-public sealed class LoginBrowserForm : Form
+public sealed class LoginBrowserForm : ThemedForm
 {
     private readonly WebView2 webView = new();
     private bool closingForDispose;
@@ -10,6 +10,7 @@ public sealed class LoginBrowserForm : Form
     public LoginBrowserForm()
     {
         Text = "Hunbjter Login";
+        Icon = AppIcon.Shared;
         StartPosition = FormStartPosition.CenterParent;
         Size = new Size(980, 720);
         MinimumSize = new Size(720, 520);
