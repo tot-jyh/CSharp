@@ -40,6 +40,25 @@ public sealed class PaidRoomRetryRule : IIntervalRule
     }
 }
 
+/// <summary>
+/// A session/login-related failure (e.g. "본인인증이 필요합니다") is often transient right
+/// after a fresh login - the account's session can take a short while to fully take effect on
+/// pandalive's side. Retry this soon instead of falling into FailureBackoffRule's exponential
+/// backoff (up to 30 minutes), which would otherwise leave the model stuck until the user
+/// notices and forces a manual recheck.
+/// </summary>
+public sealed class SessionFailureRetryRule : IIntervalRule
+{
+    public static readonly TimeSpan Interval = TimeSpan.FromSeconds(45);
+
+    public string Name => "세션 실패 재시도";
+
+    public TimeSpan? Evaluate(ModelMonitor monitor, DateTimeOffset now)
+    {
+        return PandaMessages.IsSessionRelatedFailure(monitor.StatusMessage) ? Interval : null;
+    }
+}
+
 /// <summary>Seen live very recently but currently not live — likely a brief drop, so poll faster.</summary>
 public sealed class RecentlySeenRule : IIntervalRule
 {

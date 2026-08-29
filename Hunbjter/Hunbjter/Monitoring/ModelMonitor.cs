@@ -349,6 +349,22 @@ public sealed class ModelMonitor : IAsyncDisposable
 
         if (!status.Success)
         {
+            // pandalive answers "종료된 방송입니다" (ended broadcast) with result:false - a real
+            // API-level failure shape, but it just means the model isn't broadcasting right now,
+            // not that anything actually went wrong. Treating it as a genuine failure fed
+            // ConsecutiveFailures into FailureBackoffRule's exponential wait (up to 30 minutes),
+            // so a model that came back live only a few minutes after RecentlySeenRule's 20-
+            // minute window closed could sit unchecked long enough to miss the restart entirely.
+            if (PandaMessages.IsOfflineBroadcast(status.Message))
+            {
+                ConsecutiveFailures = 0;
+                State = LiveState.Offline;
+                ClearPlayback();
+                RaiseLog($"{Favorite.DisplayName}: 오프라인 ({status.Message})");
+                ApplyOfflineStrike();
+                return Finish(wasLive, false);
+            }
+
             RegisterFailure();
             State = LiveState.Error;
             ClearPlayback();

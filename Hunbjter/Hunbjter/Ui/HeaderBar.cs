@@ -14,8 +14,16 @@ public sealed class HeaderBar : Control
     private const int LogoLeft = 18;
     private const int TextLeft = LogoLeft + LogoSize + 12;
 
+    // The logo icon plus the "Hunbjter" wordmark, not the whole left gutter (the status text
+    // that starts further right must stay unclickable).
+    private const int BrandHitWidth = TextLeft + 160 - LogoLeft;
+
     private readonly FlowLayoutPanel actionHost = new();
     private string statusText = "";
+    private bool brandHovered;
+
+    /// <summary>Raised when the logo/wordmark area is clicked - Form1 wires this to 사이트관리.</summary>
+    public event EventHandler? BrandClicked;
 
     public HeaderBar()
     {
@@ -29,6 +37,7 @@ public sealed class HeaderBar : Control
         BackColor = Theme.Surface;
         Dock = DockStyle.Fill;
         Margin = new Padding(0);
+        Cursor = Cursors.Default;
 
         actionHost.AutoSize = true;
         actionHost.BackColor = Color.Transparent;
@@ -60,9 +69,53 @@ public sealed class HeaderBar : Control
         }
     }
 
+    private Rectangle BrandBounds => new(0, 0, LogoLeft + BrandHitWidth, Height);
+
+    protected override void OnMouseMove(MouseEventArgs e)
+    {
+        base.OnMouseMove(e);
+        var hovered = BrandBounds.Contains(e.Location);
+        if (hovered == brandHovered)
+        {
+            return;
+        }
+
+        brandHovered = hovered;
+        Cursor = hovered ? Cursors.Hand : Cursors.Default;
+        Invalidate(BrandBounds);
+    }
+
+    protected override void OnMouseLeave(EventArgs e)
+    {
+        base.OnMouseLeave(e);
+        if (!brandHovered)
+        {
+            return;
+        }
+
+        brandHovered = false;
+        Cursor = Cursors.Default;
+        Invalidate(BrandBounds);
+    }
+
+    protected override void OnMouseClick(MouseEventArgs e)
+    {
+        base.OnMouseClick(e);
+        if (e.Button == MouseButtons.Left && BrandBounds.Contains(e.Location))
+        {
+            BrandClicked?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
     protected override void OnPaint(PaintEventArgs e)
     {
         e.Graphics.Clear(Theme.Surface);
+
+        if (brandHovered)
+        {
+            using var brush = new SolidBrush(Theme.SurfaceHover);
+            e.Graphics.FillRectangle(brush, BrandBounds with { Y = 2, Height = Height - 4 });
+        }
 
         using (var pen = new Pen(Theme.Border))
         {

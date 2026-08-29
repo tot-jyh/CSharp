@@ -49,6 +49,7 @@
                 [
                     new PerModelIntervalRule(),
                     new PaidRoomRetryRule(),
+                    new SessionFailureRetryRule(),
                     new RecentlySeenRule(),
                     new FailureBackoffRule()
                 ],
@@ -203,6 +204,9 @@
             headerBar.ActionHost.Controls.Add(modelManagementButton);
             headerBar.ActionHost.Controls.Add(environmentSettingsButton);
             headerBar.ActionHost.Controls.Add(siteManagementButton);
+
+            // The logo/wordmark doubles as a shortcut to 사이트관리 - same action as the button.
+            headerBar.BrandClicked += siteManagementButton_Click;
         }
 
         private void ConfigureStatCards()
@@ -775,7 +779,8 @@
 
             watchingCard.Value = favorites.Items.Count(item => item.Enabled).ToString();
             liveCard.Value = favorites.Items
-                .Count(item => item.Metadata.TryGetValue("liveStatus", out var status) && status == "live")
+                .Count(item => item.Enabled
+                    && item.Metadata.TryGetValue("liveStatus", out var status) && status == "live")
                 .ToString();
             recordingCard.Value = recordingSessions.Count.ToString();
             sizeCard.Value = FormatFileSizeCompact(recordingSizeCache.Values.Sum());
@@ -819,6 +824,13 @@
 
         private bool IsLiveListFavorite(FavoriteItem favorite)
         {
+            // A watch-off model never gets rechecked, so a stale "liveStatus: live" from before
+            // it was turned off would otherwise pin it in the 방송중 grid forever.
+            if (!favorite.Enabled)
+            {
+                return false;
+            }
+
             return recordingSessions.ContainsKey(favorite.Id)
                 || (favorite.Metadata.TryGetValue("liveStatus", out var status) && status == "live");
         }
@@ -952,13 +964,13 @@
             }
 
             favorite.Enabled = !favorite.Enabled;
-            if (favorite.Enabled)
+            // Stale status would otherwise linger (turning on: until the next check comes back;
+            // turning off: forever, since a watch-off model never gets rechecked again) - clear
+            // it either way. IsLiveListFavorite/UpdateStatCards also gate on Enabled directly, so
+            // this is belt-and-suspenders against any other code path that reads liveStatus.
+            foreach (var key in new[] { "liveStatus", "liveMessage", "streamUrl", "resolution" })
             {
-                // Stale status would otherwise linger until the first check comes back.
-                foreach (var key in new[] { "liveStatus", "liveMessage", "streamUrl", "resolution" })
-                {
-                    favorite.Metadata.Remove(key);
-                }
+                favorite.Metadata.Remove(key);
             }
 
             favorite.UpdatedAt = DateTimeOffset.Now;
@@ -1006,9 +1018,22 @@
 
         private void favoritesGridView_SelectionChanged(object? sender, EventArgs e)
         {
-            if (sender is DataGridView grid && grid.SelectedRows.Count > 0)
+            if (sender is not DataGridView grid || grid.SelectedRows.Count == 0)
             {
-                activeFavoritesGridView = grid;
+                return;
+            }
+
+            activeFavoritesGridView = grid;
+
+            // Each grid keeps its own selection independently, so selecting a row here does not
+            // clear whatever was left selected in the other grid. Left alone, that leftover
+            // selection wins back activeFavoritesGridView the next time RefreshFavoriteList runs
+            // (RestoreSelection tries liveFavoritesGridView first) - "방송 확인"/"녹화 시작" would
+            // then silently act on a stale, unrelated row instead of the one just clicked.
+            var other = ReferenceEquals(grid, liveFavoritesGridView) ? favoritesGridView : liveFavoritesGridView;
+            if (other.SelectedRows.Count > 0)
+            {
+                other.ClearSelection();
             }
         }
 
