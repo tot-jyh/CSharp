@@ -191,28 +191,33 @@ public sealed class RecordingService
 
     private static string BuildOutputPath(FavoriteItem favorite, string outputDirectory)
     {
-        Directory.CreateDirectory(outputDirectory);
-
-        var name = string.Concat(favorite.DisplayName.Select(ch => Path.GetInvalidFileNameChars().Contains(ch) ? '_' : ch));
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            name = favorite.PlatformUserId;
-        }
-
-        return Path.Combine(outputDirectory, $"{name}_{DateTime.Now:yyyyMMdd_HHmmss}.ts");
+        var name = SanitizeFileName(favorite);
+        var modelDirectory = BuildModelDirectory(outputDirectory, name);
+        return Path.Combine(modelDirectory, $"{name}_{DateTime.Now:yyyyMMdd_HHmmss}.ts");
     }
 
     private static string BuildHighlightOutputPath(FavoriteItem favorite, string outputDirectory, int seconds)
     {
-        Directory.CreateDirectory(outputDirectory);
+        var name = SanitizeFileName(favorite);
+        var modelDirectory = BuildModelDirectory(outputDirectory, name);
+        return Path.Combine(modelDirectory, $"{name}_{DateTime.Now:yyyyMMdd_HHmmss}_highlight_{seconds}s.ts");
+    }
 
+    /// <summary>
+    /// Files now land in {녹화저장 폴더}/{모델명}/... instead of flat in the root, so recordings
+    /// stay grouped per model as the folder fills up with many models over time.
+    /// </summary>
+    private static string BuildModelDirectory(string outputDirectory, string sanitizedName)
+    {
+        var modelDirectory = Path.Combine(outputDirectory, sanitizedName);
+        Directory.CreateDirectory(modelDirectory);
+        return modelDirectory;
+    }
+
+    private static string SanitizeFileName(FavoriteItem favorite)
+    {
         var name = string.Concat(favorite.DisplayName.Select(ch => Path.GetInvalidFileNameChars().Contains(ch) ? '_' : ch));
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            name = favorite.PlatformUserId;
-        }
-
-        return Path.Combine(outputDirectory, $"{name}_{DateTime.Now:yyyyMMdd_HHmmss}_highlight_{seconds}s.ts");
+        return string.IsNullOrWhiteSpace(name) ? favorite.PlatformUserId : name;
     }
 
     private static string TrimFfmpegError(string value)

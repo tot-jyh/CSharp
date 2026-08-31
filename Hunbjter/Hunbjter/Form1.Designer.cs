@@ -35,6 +35,7 @@
             modelManagementButton = new ThemedButton();
             environmentSettingsButton = new ThemedButton();
             siteManagementButton = new ThemedButton();
+            clipButton = new ThemedButton();
             statsPanel = new BufferedTableLayoutPanel();
             watchingCard = new StatCard();
             liveCard = new StatCard();
@@ -149,7 +150,21 @@
             siteManagementButton.Text = "사이트관리";
             siteManagementButton.UseVisualStyleBackColor = false;
             siteManagementButton.Click += siteManagementButton_Click;
-            // 
+            //
+            // clipButton
+            //
+            clipButton.BackColor = Color.Transparent;
+            clipButton.FlatStyle = FlatStyle.Flat;
+            clipButton.Font = new Font("맑은 고딕", 9F);
+            clipButton.Location = new Point(6, 12);
+            clipButton.Margin = new Padding(6, 0, 0, 0);
+            clipButton.Name = "clipButton";
+            clipButton.Size = new Size(100, 32);
+            clipButton.TabIndex = 3;
+            clipButton.Text = "Clip";
+            clipButton.UseVisualStyleBackColor = false;
+            clipButton.Click += clipButton_Click;
+            //
             // statsPanel
             // 
             statsPanel.BackColor = Color.Transparent;
@@ -246,7 +261,7 @@
             favoritesGridView.ColumnHeadersDefaultCellStyle = dataGridViewCellStyle1;
             favoritesGridView.ColumnHeadersHeight = 34;
             favoritesGridView.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
-            favoritesGridView.Columns.AddRange(new DataGridViewColumn[] { dummyColumn, numberColumn, platformColumn, nameColumn, enabledColumn, recordingColumn, resolutionColumn, lastSeenColumn, lastCheckColumn, watchColumn, fileSizeColumn, instantCaptureColumn });
+            favoritesGridView.Columns.AddRange(new DataGridViewColumn[] { dummyColumn, numberColumn, platformColumn, watchColumn, nameColumn, enabledColumn, recordingColumn, resolutionColumn, lastSeenColumn, lastCheckColumn, fileSizeColumn, instantCaptureColumn });
             favoritesGridView.ContextMenuStrip = favoriteContextMenu;
             dataGridViewCellStyle2.Alignment = DataGridViewContentAlignment.MiddleCenter;
             dataGridViewCellStyle2.BackColor = Color.FromArgb(23, 26, 32);
@@ -559,6 +574,7 @@
         private BufferedTableLayoutPanel rootLayout;
         private HeaderBar headerBar;
         private ThemedButton siteManagementButton;
+        private ThemedButton clipButton;
         private ThemedButton environmentSettingsButton;
         private ThemedButton modelManagementButton;
         private BufferedTableLayoutPanel statsPanel;

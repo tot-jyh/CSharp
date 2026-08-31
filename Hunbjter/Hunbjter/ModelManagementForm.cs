@@ -8,6 +8,7 @@ public sealed class ModelManagementForm : ThemedDialog
     private readonly FavoriteStore favoriteStore;
     private readonly HashSet<string> recordingFavoriteIds;
     private readonly ThemedGrid modelGrid = new();
+    private readonly ThemedComboBox gridSiteFilterComboBox = new();
     private readonly ThemedComboBox siteComboBox = new();
     private readonly ThemedTextBox nicknameTextBox = new();
     private readonly ThemedTextBox userIdTextBox = new();
@@ -116,6 +117,11 @@ public sealed class ModelManagementForm : ThemedDialog
         // section rather than something stacked onto the watch toggle.
         editor.RowStyles.Add(new RowStyle(SizeType.Absolute, 72F));
 
+        // Editing-only: this combo box is the site *field* for the selected/new favorite. It used
+        // to also drive the grid filter, but that made changing an existing row's site mid-edit
+        // wipe selectedFavoriteId (RefreshGrid's ClearSelection fires LoadSelectedRow with nothing
+        // selected) and silently break "수정". Filtering now lives on gridSiteFilterComboBox below,
+        // which is independent of whatever is being edited.
         siteComboBox.SelectedIndexChanged += (_, _) => UpdateUrlFromUserIdIfAutomatic();
         userIdTextBox.TextChanged += (_, _) => UpdateUrlFromUserIdIfAutomatic();
         urlTextBox.TextChanged += (_, _) =>
@@ -209,7 +215,30 @@ public sealed class ModelManagementForm : ThemedDialog
         statusLabel.ForeColor = Theme.TextSecondary;
         statusLabel.TextAlign = ContentAlignment.MiddleLeft;
 
-        root.Controls.Add(modelGrid, 0, 0);
+        // Independent of siteComboBox (the editor's site field) - see the comment on that combo
+        // box's SelectedIndexChanged handler above for why they used to be the same control and
+        // what that broke.
+        gridSiteFilterComboBox.Dock = DockStyle.Fill;
+        gridSiteFilterComboBox.Margin = new Padding(0, 4, 0, 4);
+        gridSiteFilterComboBox.SelectedIndexChanged += (_, _) => RefreshGrid();
+
+        var gridHeaderPanel = new TableLayoutPanel
+        {
+            BackColor = Color.Transparent,
+            ColumnCount = 2,
+            Dock = DockStyle.Fill,
+            Margin = new Padding(0),
+            RowCount = 2
+        };
+        gridHeaderPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        gridHeaderPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120F));
+        gridHeaderPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 32F));
+        gridHeaderPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+        gridHeaderPanel.Controls.Add(gridSiteFilterComboBox, 1, 0);
+        gridHeaderPanel.Controls.Add(modelGrid, 0, 1);
+        gridHeaderPanel.SetColumnSpan(modelGrid, 2);
+
+        root.Controls.Add(gridHeaderPanel, 0, 0);
         root.Controls.Add(editor, 0, 1);
         root.Controls.Add(statusLabel, 0, 2);
         root.Controls.Add(actionPanel, 0, 3);
@@ -239,6 +268,17 @@ public sealed class ModelManagementForm : ThemedDialog
         siteComboBox.DataSource = sites.Sites.ToList();
         siteComboBox.DisplayMember = nameof(SiteProfile.Name);
 
+        var previousFilter = gridSiteFilterComboBox.SelectedItem as string ?? "전체";
+        gridSiteFilterComboBox.Items.Clear();
+        gridSiteFilterComboBox.Items.Add("전체");
+        foreach (var site in sites.Sites)
+        {
+            gridSiteFilterComboBox.Items.Add(DisplayName(site));
+        }
+
+        var restoreIndex = gridSiteFilterComboBox.Items.IndexOf(previousFilter);
+        gridSiteFilterComboBox.SelectedIndex = restoreIndex >= 0 ? restoreIndex : 0;
+
         favorites = favoriteStore.Load();
         RefreshGrid();
         ClearEditor();
@@ -248,7 +288,17 @@ public sealed class ModelManagementForm : ThemedDialog
     {
         refreshingGrid = true;
         modelGrid.Rows.Clear();
-        foreach (var favorite in favorites.Items.OrderBy(item => item.DisplayName))
+
+        // Independent of the editor's "사이트" field (siteComboBox) - see the comment on that
+        // combo box's SelectedIndexChanged handler for why they are no longer the same control.
+        var filterSiteName = gridSiteFilterComboBox.SelectedIndex > 0
+            ? gridSiteFilterComboBox.SelectedItem as string
+            : null;
+        var visibleItems = filterSiteName is null
+            ? favorites.Items
+            : favorites.Items.Where(item => item.Platform.Equals(filterSiteName, StringComparison.OrdinalIgnoreCase));
+
+        foreach (var favorite in visibleItems.OrderBy(item => item.DisplayName))
         {
             var rowIndex = modelGrid.Rows.Add(
                 favorite.Enabled ? "ON" : "OFF",
@@ -280,7 +330,11 @@ public sealed class ModelManagementForm : ThemedDialog
         }
 
         var favorite = FindFavorite(id);
-        GridRenderers.PaintWatchBadge(e, favorite?.Enabled ?? false, hovered: false);
+        GridRenderers.PaintWatchBadge(
+            e,
+            favorite?.Enabled ?? false,
+            hovered: false,
+            locked: favorite is not null && favorite.Enabled && recordingFavoriteIds.Contains(favorite.Id));
     }
 
     /// <summary>
@@ -423,6 +477,7 @@ public sealed class ModelManagementForm : ThemedDialog
         {
             favorite.Metadata.Remove(key);
         }
+        favorite.RecordingPaused = false;
 
         favorite.UpdatedAt = DateTimeOffset.Now;
         selectedFavoriteId = favorite.Id;
@@ -466,6 +521,12 @@ public sealed class ModelManagementForm : ThemedDialog
             UpdatedAt = now
         });
 
+        // Without this, SaveAndRefresh captures selectedFavoriteId as "" (whatever it was before
+        // adding), so ReselectCurrent has nothing to reselect and the new row never gets
+        // highlighted - looking like the add silently failed. Clicking "추가" again with the same
+        // fields then hits the "existing found" branch above and calls UpdateModel(), which *does*
+        // set this, making it look like the add only worked on the second try.
+        selectedFavoriteId = id;
         SaveAndRefresh($"모델을 추가했습니다: {nickname}");
     }
 

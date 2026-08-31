@@ -21,6 +21,14 @@ public sealed class FavoriteItem
     public bool Enabled { get; set; } = true;
 
     /// <summary>
+    /// True when the user manually clicked "녹화 종료" while watched/live - keeps the automatic
+    /// recheck paths (loop, after-recording-exit, manual check) from immediately restarting
+    /// recording. Cleared by a manual "녹화 시작" or by toggling Watch off/on. Does NOT apply to
+    /// the offline-backoff auto-stop (StopForOfflineBroadcast), which should keep auto-resuming.
+    /// </summary>
+    public bool RecordingPaused { get; set; }
+
+    /// <summary>
     /// Per-model check interval. Null means "use the interval from 환경설정".
     /// Additive only: older favorites.json files simply leave this null.
     /// </summary>

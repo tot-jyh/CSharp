@@ -63,6 +63,24 @@ public sealed class ThemedTextBox : TextBox
 }
 
 /// <summary>
+/// Dark-styled <see cref="MaskedTextBox"/>, mask defaulted to "00:00:00" (HH:mm:ss) for the
+/// Clip tool's segment start/end fields - enforces digit-only input per position as you type,
+/// rather than free text validated after the fact.
+/// </summary>
+public sealed class ThemedMaskedTextBox : MaskedTextBox
+{
+    public ThemedMaskedTextBox()
+    {
+        BackColor = Theme.SurfaceAlt;
+        ForeColor = Theme.TextPrimary;
+        BorderStyle = BorderStyle.None;
+        Font = Theme.Base;
+        Mask = "00:00:00";
+        InsertKeyMode = InsertKeyMode.Overwrite;
+    }
+}
+
+/// <summary>
 /// <see cref="NumericUpDown"/> with the palette pushed onto its internal text box and
 /// spin buttons, which do not inherit the parent colors on their own.
 /// </summary>

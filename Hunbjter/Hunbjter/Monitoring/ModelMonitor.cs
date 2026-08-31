@@ -297,7 +297,8 @@ public sealed class ModelMonitor : IAsyncDisposable
             return CheckOutcome.Skipped;
         }
 
-        if (!PandaMessages.IsPandaPlatform(Favorite.Platform, Favorite.ProfileUrl))
+        if (!PandaMessages.IsPandaPlatform(Favorite.Platform, Favorite.ProfileUrl)
+            && !PandaMessages.IsStripchatPlatform(Favorite.Platform, Favorite.ProfileUrl))
         {
             return MarkUnsupported();
         }
@@ -401,7 +402,7 @@ public sealed class ModelMonitor : IAsyncDisposable
 
         RaiseLog($"{Favorite.DisplayName}: {(status.IsLive ? "방송중" : "오프라인")} {resolution}".TrimEnd());
 
-        var shouldStart = status.IsLive && !IsRecording && Favorite.Enabled;
+        var shouldStart = status.IsLive && !IsRecording && Favorite.Enabled && !Favorite.RecordingPaused;
         return Finish(wasLive, shouldStart);
     }
 

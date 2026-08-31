@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<!-- saved from url=(0253)https://94e5f1c0-63ad-4940-a9c9-8b0c10b501e2.frame.claudeusercontent.com/_f/1787742939-df42/?__frame_t=MbPLxA8AKr7WfvjbBSVZWfHP.102d60bb-bddb-4b6f-bca5-d579514fb175.597d6131-8d5e-468c-b61e-e83cb7d946a1.1787746620&__frame_v=manifest.14a5398c0bc96a59.json -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><!-- frame-runtime --><!--<base href="/_f/1787742939-df42/">--><base href="."><script>window.__FRAME_PREAMBLE={"v":1,"capabilities":{"artifact":"artifact.oqIe8shs.js","assets":"assets.DBUJcvq_.js","comments":"comments.GLuHR3zP.js","db":"db.CRhVHzSt.js","downloads":"downloads.C3GSvEDP.js","embed":"embed.CxGAyc-v.js","mcp":"mcp.Bvma3qD7.js","network":"network.B5UA9Su4.js","permissions":"permissions.BNySkLV5.js","room":"room.DE7EMui-.js","sample":"sample.BW2Uysoh.js","self":"artifact.oqIe8shs.js","user":"user.BpKav-Rf.js"},"transforms":"_transforms.CQm3TZ9K.js","comments":"_comments.PBVy184F.js","translate":"_translate.5HCW4BJh.js"}</script><script>(function(){"use strict";var Z=["light","dark","system"],J=/^[A-Za-z0-9_-]{1,64}$/,z=/^[a-zA-Z_:][a-zA-Z0-9_:.-]{0,127}$/,Q=new Set(["class","hidden","value","checked"]);function ee(e){const t=e.toLowerCase();return t.startsWith("data-")||t.startsWith("aria-")||Q.has(t)}var Me="http://www.w3.org/1999/xhtml",te="http://www.w3.org/2000/svg",re=new Set(["script","style","iframe","noscript","noframes","noembed","xmp","plaintext","template","title","textarea","object","embed"]),ne=new Set(["script","style"]);function oe(e){const t=e.localName.toLowerCase();return e.namespaceURI==="http://www.w3.org/1999/xhtml"?!re.has(t):e.namespaceURI===te?!ne.has(t):!1}var se=new Set(["html","head","body","frameset"]);function ae(e){return e.namespaceURI==="http://www.w3.org/1999/xhtml"&&se.has(e.localName)}function ie(e){if(e===null||typeof e!="object")return!1;const t=e;if(typeof t.target!="string"||!J.test(t.target)||t.text!==void 0&&typeof t.text!="string")return!1;if(t.attrsSet!==void 0){if(t.attrsSet===null||typeof t.attrsSet!="object")return!1;for(const[r,n]of Object.entries(t.attrsSet))if(!z.test(r)||typeof n!="string")return!1}if(t.attrsRemoved!==void 0){if(!Array.isArray(t.attrsRemoved))return!1;for(const r of t.attrsRemoved)if(typeof r!="string"||!z.test(r))return!1}return!0}function ce(e,t){if(e===null||typeof e!="object")return!1;const{seq:r,elements:n}=e;if(typeof r!="number"||!Number.isSafeInteger(r)||!Array.isArray(n)||n.length===0||n.length>64)return!1;for(let s=0;s<n.length;s++)if(!t(n[s]))return!1;return!0}function le(e){return e===null||typeof e!="object"?!1:ce(e.__frame_patch,ie)}function ue(e){if(e===null||typeof e!="object")return!1;const t=e.__frame_init;return t!==null&&typeof t=="object"}function fe(e){return e!==null&&typeof e=="object"&&e.__frame_size_poke===!0}function pe(e){if(e===null||typeof e!="object")return!1;const t=e.__frame_theme;if(t===null||typeof t!="object")return!1;const r=t.theme;return typeof r=="string"&&Z.includes(r)}var g=/^[\w.-]+\.js$/;function de(e,t,r){return r?"inert":typeof t=="string"&&g.test(t)?e?[t]:"inert":e?"inert":"framed"}function me(){return{post(e,t){parent.postMessage(e,t)},on(e){const t=r=>{r.source===parent&&e(r.data,r.origin)};return addEventListener("message",t),()=>removeEventListener("message",t)}}}function he(){return{post:()=>{},on:()=>()=>{}}}var O="__frame_scroll",_e=150,ve=310,ye=160,we=3e4;function be(){let e=0,t=!1,r=!1,n=!1,s=0,a=null;const u=i=>{try{sessionStorage.setItem(O,JSON.stringify({y:i}))}catch{}},f=()=>{if(clearTimeout(e),a===null)return;const i=a;a=null,u(i)},R=()=>{if(t){t=!1;return}r=!0,a=scrollY,clearTimeout(e),e=setTimeout(f,_e)};try{addEventListener("scroll",R,{passive:!0}),addEventListener("pagehide",f)}catch{}const v=()=>{let i;try{i=sessionStorage.getItem(O)}catch{return null}if(i===null)return null;let m;try{m=JSON.parse(i)}catch{m=null}const l=m?.y;if(!(typeof l=="number"&&Number.isFinite(l)&&l>=0)){try{sessionStorage.removeItem(O)}catch{}return null}return l};let S=!1;const h=i=>{try{const m=scrollY;scrollTo({top:i,left:0,behavior:"instant"}),s=i,n=!0,clearTimeout(e),a=null,u(i);const l=scrollY;l!==m&&(t=!0),l!==i&&!S&&(S=!0,addEventListener("load",()=>{try{if(scrollY===l){const k=v();h(k!==null?k:s)}}catch{}},{once:!0}))}catch{}},y=()=>{try{return!!location.hash}catch{return!0}};let o=!1;const p=()=>{try{if(o||innerWidth>ve||innerHeight>ye)return;o=!0;const i=Date.now(),m=()=>{try{removeEventListener("resize",m)}catch{}if(Date.now()-i>we||r||y())return;const l=v();h(l!==null?l:s)};addEventListener("resize",m)}catch{}};let _=!1,w=!1;return{restore(){if(_||(_=!0,y()))return;const i=v();i!==null&&(h(i),p())},promoted(){if(w||(w=!0,y()))return;const i=v();i!==null?(h(i),p()):n&&h(s)}}}function Ee(e,t,r){let n=null;try{n=window.trustedTypes?.createPolicy("frame-runtime",{createScriptURL:f=>f})??null}catch{}const s=window.Worker,a=s?.prototype,u=Object.freeze({Worker:s,workerOn:a?.addEventListener,workerPost:a?.postMessage,workerTerminate:a?.terminate,fetch:window.fetch.bind(window),preventDefault:Event.prototype.preventDefault,policy:n});t(e).then(f=>f?.bootTopLevel?f.bootTopLevel(u,{settle:r}):r()).catch(r)}var Oe="modulepreload",Ce=function(e){return"/"+e},je={},ge=function(t,r,n){let s=Promise.resolve();function a(u){const f=new Event("vite:preloadError",{cancelable:!0});if(f.payload=u,window.dispatchEvent(f),!f.defaultPrevented)throw u}return s.then(u=>{for(const f of u||[])f.status==="rejected"&&a(f.reason);return t().catch(a)})},Ae=window===top,H=Object.getOwnPropertyDescriptor(window,"claude"),T=de(Ae,window.__FRAME_PREAMBLE?.topLevel,H?.writable===!1),C=typeof T=="object"&&T[0],d=C?he():me();(function(){const e=Object.defineProperty,t=globalThis,r=["RTCPeerConnection","webkitRTCPeerConnection","RTCDataChannel","RTCIceCandidate","RTCSessionDescription","RTCRtpSender","RTCRtpReceiver"];let n=0;for(let s=0;s<r.length;s++){const a=r[s];try{e(t,a,{value:void 0,writable:!1,configurable:!1})}catch{try{delete t[a]}catch{}try{e(t,a,{value:void 0,writable:!1,configurable:!0})}catch{}}typeof t[a]=="function"&&n++}if(n&&T==="framed")try{d.post({__frame_rtc_lockdown_failed:n},"*")}catch{}})();var Re=1e4,Se=Object.freeze([...window.__FRAME_PREAMBLE?.origins??["https://claude.ai","https://preview.claude.ai"]]);function q(e){for(const t of Se)if(t.endsWith(":*"))try{const r=new URL(e);if(`${r.protocol}//${r.hostname}:*`===t)return!0}catch{}else if(e===t)return!0;return!1}var L=Object.freeze({...window.__FRAME_PREAMBLE?.capabilities}),j=window.__FRAME_PREAMBLE?.transforms,N=window.__FRAME_PREAMBLE?.comments,I=window.__FRAME_PREAMBLE?.translate;function A(e){return ge(()=>import("/_runtime/"+e),void 0)}function W(e,t){return{contract:e.contract,changes:new Set(e.changes??[]),flags:new Set(e.flags??[]),capabilities:e.capabilities??{},capBudgets:e.capBudgets??{},transforms:new Map,shellOrigin:t,mount:G,pipe:()=>({wrap:(r,n)=>(...s)=>{try{return n(...s)}catch(a){return Promise.reject(a)}}})}}var P=null,b=null;function $(e,t,r){try{Object.defineProperty(e,t,{value:r,writable:!1,configurable:!1,enumerable:!0})}catch{try{Object.defineProperty(e,t,{value:r,writable:!1,configurable:!0,enumerable:!0})}catch{}}}var B=!1;function ke(e,t){const r=[];for(const n of e.elements){const s=document.querySelector(`[data-id="${n.target}"]`);if(!s){d.post({__frame_patch_miss:{seq:e.seq}},t);return}if([...Object.keys(n.attrsSet??{}),...n.attrsRemoved??[]].some(a=>!ee(a))){d.post({__frame_patch_miss:{seq:e.seq}},t);return}if(n.text!==void 0&&(!oe(s)||ae(s))){d.post({__frame_patch_miss:{seq:e.seq}},t);return}for(const[a,u]of Object.entries(n.attrsSet??{}))if(!Y(s,a)){try{s.setAttribute(a,u)}catch{}K(s,a,u)}for(const a of n.attrsRemoved??[])Y(s,a)||(s.removeAttribute(a),K(s,a,null));typeof n.text=="string"&&(s.textContent=n.text),r.push(n.target)}try{document.dispatchEvent(new CustomEvent("claude:edit",{detail:{seq:e.seq,targets:r}}))}catch{}}function K(e,t,r){if(!(e instanceof HTMLInputElement))return;const n=t.toLowerCase();n==="checked"?e.checked=r!==null:n==="value"&&e.type!=="file"&&(e.value=r??"")}function Y(e,t){const r=t.toLowerCase(),n=e;return r==="data-id"||(r==="value"||r==="checked")&&(n.__artifactSecret===!0||/^(password|hidden|file)$/.test(n.type??"")||/(^|\s)(cc-|one-time-code|current-password|new-password)/i.test(`${e.getAttribute("autocomplete")??""} ${n.autocomplete??""}`))}function X(e){const t=document.documentElement;e==="light"||e==="dark"?(t.dataset.theme=e,t.style.colorScheme=e,B=!0):B&&(delete t.dataset.theme,t.style.colorScheme="",B=!1)}var M=new Map;function Te(){let e;const t={u:new Promise(r=>{e=r}),r:r=>{t.done=!0,e(r)},done:!1,nulled:!1};return t}function U(){for(const e of M.values())e.done||(e.nulled=!0,e.r(null))}var Le=Object.freeze(Object.assign(Object.create(null),{call:Function.prototype.call,apply:Function.prototype.apply,bind:Function.prototype.bind})),G=(e,t)=>{const r=M.get(e);if(!r||r.done){r?.nulled&&b&&d.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:e}},b);return}const n=typeof t=="function"?Object.setPrototypeOf(t,Le):Object.assign(Object.create(null),t);typeof n.then=="function"&&delete n.then,r.r(Object.freeze(n))};function V(){const e=H?.value??{};$(window,"claude",e);for(const t of Object.keys(L)){if(e[t]!==void 0){$(e,t,e[t]);continue}M.set(t,Te())}if(e.use===void 0){const t=r=>{if(typeof r!="string"||!Object.hasOwn(L,r))return Promise.resolve(null);const n=M.get(r);return n?n.u:Promise.resolve(e[r]??null)};try{Object.defineProperty(e,"use",{value:t,writable:!0,configurable:!0,enumerable:!1})}catch{}}}if(T==="framed"){const e=j&&g.test(j)?A(j).catch(()=>{}):Promise.resolve(void 0),t=o=>{if(o.type==="auxclick"&&o.button!==1)return;const p=o.target,_=p&&p.closest?p.closest("a[href],area[href]"):null;if(!_)return;const w=_.getAttribute("href");if(!w)return;let i;try{i=new URL(w,document.baseURI)}catch{return}if((i.protocol==="http:"||i.protocol==="https:")&&i.origin!==location.origin){o.preventDefault();const m=(_.getAttribute("target")??"").toLowerCase(),l=o.type==="auxclick"||o.metaKey||o.ctrlKey||o.shiftKey||o.altKey||!["","_self","_top","_parent"].includes(m);d.post({__frame_nav:!0,url:i.href,newTab:l},"*")}};addEventListener("click",t,!0),addEventListener("auxclick",t,!0);const r={},n=o=>{o.isTrusted&&(r.pointer=!0)},s=o=>{o.isTrusted&&(r.click=!0)};addEventListener("pointermove",n,{capture:!0,passive:!0}),addEventListener("click",s,{capture:!0,passive:!0}),e.then(o=>{o?.wireNav&&(o.wireNav(),removeEventListener("click",t,!0),removeEventListener("auxclick",t,!0),removeEventListener("pointermove",n,!0),removeEventListener("click",s,!0),o.wireEngagement?.(r))});let a=null;try{a=be()}catch{}V();let u=null,f=null,R=0;const v=d.on((o,p)=>{q(p)&&ue(o)&&(u=o.__frame_init,b=p,v(),clearTimeout(R),f?.())});d.post({__frame_connect:!0},"*");const S=new Promise(o=>{f=o,R=setTimeout(()=>{v(),o()},Re)}),h=document.readyState==="loading"?new Promise(o=>document.addEventListener("DOMContentLoaded",()=>o(),{once:!0})):Promise.resolve();h.then(()=>{try{a?.restore()}catch{}});const y={cb:null};d.on((o,p)=>{if(q(p)&&fe(o)){try{a?.promoted()}catch{}y.cb?.()}}),S.then(async()=>{if(!u||!b){U();return}X(u.theme);const o=b;let p=!1,_=!1;d.on((c,D)=>{if(D!==o)return;pe(c)&&X(c.__frame_theme.theme),le(c)&&ke(c.__frame_patch,o);const E=c?.__fc_mode;E&&typeof E=="object"&&!p&&N&&g.test(N)&&(p=!0,A(N).then(F=>F.install?.(o,E.on===!0)).catch(()=>{}));const x=c?.__ft_cmd;x&&typeof x=="object"&&!_&&I&&g.test(I)&&(_=!0,A(I).then(F=>F.install?.(o,x)).catch(()=>{}))});const w=Object.keys(u.capabilities??{}).filter(c=>Object.hasOwn(L,c)).map(c=>[c,L[c]]).filter(c=>typeof c[1]=="string"&&g.test(c[1])),i=await Promise.allSettled(w.map(([,c])=>A(c))),m=await e,l=b;if(m?.buildBoot||d.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:"_transforms"}},l),m?.buildBoot)try{P=m.buildBoot(u,m.TRANSFORMS??{},{shellOrigin:l,mount:G},c=>d.post({__frame_cap_telemetry:c},l))}catch{d.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:"_transforms"}},l),P=W(u,l)}else P=W(u,l);const k=c=>d.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:c}},l),Pe=P;i.forEach((c,D)=>{const E=w[D][0];if(c.status!=="fulfilled"){k(E);return}try{c.value?.install?.(Pe)}catch{k(E)}}),U(),await h,d.post({__frame_ready:!0},b),e.then(c=>c?.installSizeReporter?.(l,y))})}else C&&(V(),Ee(C,A,U))})();</script><!-- /frame-runtime --><meta name="viewport" content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}</style></head><body>
+<title>Hunbjter 동작 원리</title>
+<link rel="preconnect" href="https://fonts.googleapis.com/">
+<link rel="stylesheet" href="./css2">
+
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --surface: #ffffff;
+    --surface-alt: #eef0f4;
+    --border: #d7dbe3;
+    --text: #1a1d24;
+    --text-muted: #5b6272;
+    --accent: #2f6fed;
+    --live: #1f9d63;
+    --rec: #c53c33;
+    --warn: #a9700a;
+
+    --sans: "IBM Plex Sans KR", "IBM Plex Sans", system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d0f13;
+      --surface: #161920;
+      --surface-alt: #1e222b;
+      --border: #2b303b;
+      --text: #e8eaf0;
+      --text-muted: #8b93a5;
+      --accent: #5b9bff;
+      --live: #34d399;
+      --rec: #f4695f;
+      --warn: #f5a524;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #0d0f13;
+    --surface: #161920;
+    --surface-alt: #1e222b;
+    --border: #2b303b;
+    --text: #e8eaf0;
+    --text-muted: #8b93a5;
+    --accent: #5b9bff;
+    --live: #34d399;
+    --rec: #f4695f;
+    --warn: #f5a524;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 56px 32px 96px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  h1 {
+    font-size: clamp(28px, 4vw, 38px);
+    font-weight: 700;
+    margin: 6px 0 4px;
+    text-wrap: balance;
+    letter-spacing: -0.01em;
+  }
+
+  .lede {
+    color: var(--text-muted);
+    font-size: 15.5px;
+    max-width: 62ch;
+    margin: 0 0 28px;
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 22px;
+    padding: 16px 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 44px;
+    font-family: var(--mono);
+    font-size: 12.5px;
+  }
+
+  .legend-item { display: flex; align-items: center; gap: 8px; color: var(--text-muted); }
+  .swatch { width: 11px; height: 11px; border-radius: 3px; flex: none; }
+  .sw-accent { background: var(--accent); }
+  .sw-live   { background: var(--live); }
+  .sw-rec    { background: var(--rec); }
+  .sw-warn   { background: var(--warn); }
+
+  section.figure-block {
+    margin-bottom: 60px;
+  }
+
+  .figure-block h2 {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    margin: 0 0 2px;
+  }
+
+  .figure-block h3 {
+    font-size: 21px;
+    font-weight: 700;
+    margin: 0 0 18px;
+    letter-spacing: -0.01em;
+  }
+
+  figure {
+    margin: 0;
+    padding: 0;
+  }
+
+  .diagram-frame {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    overflow-x: auto;
+  }
+
+  svg.flow { display: block; max-width: 100%; height: auto; }
+  svg.flow text { font-family: var(--mono); }
+
+  figcaption {
+    margin-top: 14px;
+    color: var(--text-muted);
+    font-size: 14px;
+    max-width: 70ch;
+  }
+
+  figcaption strong { color: var(--text); font-weight: 600; }
+
+  code.chip {
+    font-family: var(--mono);
+    font-size: 0.88em;
+    background: var(--surface-alt);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 1px 6px;
+  }
+
+  .divider {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text-muted);
+    font-family: var(--mono);
+    font-size: 12px;
+    margin: 0 0 44px;
+  }
+  .divider::before, .divider::after {
+    content: "";
+    height: 1px;
+    background: var(--border);
+    flex: 1;
+  }
+
+  footer.note {
+    border-top: 1px solid var(--border);
+    padding-top: 24px;
+    color: var(--text-muted);
+    font-size: 13.5px;
+    max-width: 70ch;
+  }
+
+  @media (max-width: 640px) {
+    .page { padding: 36px 18px 72px; }
+  }
+</style>
+
+<div class="page">
+  <div class="eyebrow">Hunbjter Recorder — 내부 동작</div>
+  <h1>모델 하나 감시하는 데 이렇게 많은 일이 벌어진다</h1>
+  <p class="lede">
+    실행부터 로그인, 방송 확인, 녹화, 파일 분할까지 — 이번에 실제로 코드를 고치면서
+    확인한 흐름 그대로입니다. 화살표 하나하나가 실제 분기입니다.
+  </p>
+
+  <div class="legend">
+    <span class="legend-item"><span class="swatch sw-accent"></span>공유 자원 (WebView2 · 대기열)</span>
+    <span class="legend-item"><span class="swatch sw-live"></span>성공 경로</span>
+    <span class="legend-item"><span class="swatch sw-rec"></span>녹화 (ffmpeg)</span>
+    <span class="legend-item"><span class="swatch sw-warn"></span>재시도 · 주의</span>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- FIGURE 1 — 시작 & 로그인 -->
+  <!-- ============================================================ -->
+  <section class="figure-block">
+    <h2>01</h2>
+    <h3>실행 시 중복 방지, 로그인은 완전히 별도 경로</h3>
+    <figure>
+      <div class="diagram-frame">
+        <svg class="flow" viewBox="0 0 940 340" role="img" aria-label="앱 시작 시 뮤텍스로 중복 실행을 막고, 사이트관리에서 수동으로 로그인하면 쿠키가 WebView2 프로필에 저장되어 재시작해도 유지되는 흐름">
+          <defs>
+            <marker id="arrow1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 Z" fill="currentColor"></path>
+            </marker>
+          </defs>
+
+          <!-- 앱 시작 -->
+          <rect x="20" y="32" width="130" height="56" rx="10" fill="var(--surface-alt)" stroke="currentColor" stroke-width="1.5"></rect>
+          <text x="85" y="65" text-anchor="middle" font-size="13">앱 시작</text>
+
+          <line x1="150" y1="60" x2="159" y2="60" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow1)"></line>
+
+          <!-- diamond: 이미 실행중? -->
+          <polygon points="160,60 250,10 340,60 250,110" fill="var(--surface-alt)" stroke="currentColor" stroke-width="1.5"></polygon>
+          <text x="250" y="56" text-anchor="middle" font-size="12">이미</text>
+          <text x="250" y="70" text-anchor="middle" font-size="12">실행중?</text>
+
+          <!-- 아니오 → 메인창 -->
+          <line x1="340" y1="60" x2="370" y2="60" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow1)"></line>
+          <text x="352" y="46" text-anchor="middle" font-size="11" fill="var(--text-muted)">아니오</text>
+
+          <rect x="380" y="32" width="180" height="56" rx="10" fill="var(--surface)" stroke="currentColor" stroke-width="1.5"></rect>
+          <text x="470" y="55" text-anchor="middle" font-size="12.5">메인 창 뜸</text>
+          <text x="470" y="72" text-anchor="middle" font-size="12.5">+ 트레이 아이콘 상주</text>
+
+          <line x1="560" y1="60" x2="600" y2="60" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow1)"></line>
+
+          <rect x="610" y="26" width="290" height="68" rx="10" fill="color-mix(in srgb, var(--accent) 14%, var(--surface))" stroke="var(--accent)" stroke-width="1.5"></rect>
+          <text x="755" y="54" text-anchor="middle" font-size="12.5" font-weight="600">감시중인 모델 각각</text>
+          <text x="755" y="72" text-anchor="middle" font-size="12.5" font-weight="600">독립 타이머로 대기 시작</text>
+          <text x="755" y="88" text-anchor="middle" font-size="10.5" fill="var(--text-muted)">(→ 그림 02로)</text>
+
+          <!-- 예 → 기존 창 활성화 -->
+          <line x1="250" y1="110" x2="250" y2="152" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow1)"></line>
+          <text x="264" y="135" font-size="11" fill="var(--text-muted)">예</text>
+
+          <rect x="140" y="160" width="220" height="56" rx="10" fill="var(--surface)" stroke="currentColor" stroke-width="1.5"></rect>
+          <text x="250" y="183" text-anchor="middle" font-size="12.5">기존 창을 강제로</text>
+          <text x="250" y="200" text-anchor="middle" font-size="12.5">포그라운드로 소환</text>
+
+          <!-- 메인창 → 사이트관리(로그인) 분기 -->
+          <line x1="470" y1="88" x2="470" y2="170" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow1)"></line>
+          <text x="486" y="132" font-size="11" fill="var(--text-muted)">사이트관리 클릭 (수동)</text>
+
+          <rect x="360" y="178" width="220" height="52" rx="10" fill="var(--surface)" stroke="currentColor" stroke-width="1.5"></rect>
+          <text x="470" y="199" text-anchor="middle" font-size="12">DOM 스크립트로 로그인</text>
+          <text x="470" y="216" text-anchor="middle" font-size="12">폼 입력 + 제출 자동화</text>
+
+          <line x1="470" y1="230" x2="470" y2="252" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow1)"></line>
+
+          <rect x="330" y="260" width="280" height="60" rx="10" fill="var(--surface)" stroke="currentColor" stroke-width="1.5"></rect>
+          <text x="470" y="284" text-anchor="middle" font-size="12">쿠키가 WebView2 프로필에</text>
+          <text x="470" y="301" text-anchor="middle" font-size="12">저장 — 앱 재시작해도 유지</text>
+        </svg>
+      </div>
+      <figcaption>
+        로그인은 <strong>계정 하나, 한 번</strong>이면 됩니다. 모델을 몇 개 감시하든 로그인 자체가
+        모델 수만큼 늘어나지 않습니다 — 방송 확인은 그 계정의 쿠키를 재사용할 뿐입니다.
+      </figcaption>
+    </figure>
+  </section>
+
+  <div class="divider">그림 02 — 실제로 가장 복잡한 부분</div>
+
+  <!-- ============================================================ -->
+  <!-- FIGURE 2 — 감시 루프 & 방송 확인 -->
+  <!-- ============================================================ -->
+  <section class="figure-block">
+    <h2>02</h2>
+    <h3>모델은 여러 개인데 브라우저는 하나뿐이라서</h3>
+    <figure>
+      <div class="diagram-frame">
+        <svg class="flow" viewBox="0 0 1000 780" role="img" aria-label="모델마다 독립 타이머로 체크 시각이 오면 WebViewGate 대기열에서 순번을 기다려 공유 WebView2로 HTTP 확인을 먼저 시도하고, 세션 관련 실패면 브라우저 네비게이션으로 한 번 더 시도하며, 실패 종류에 따라 다른 간격으로 재시도하는 흐름">
+          <defs>
+            <marker id="arrow2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 Z" fill="currentColor"></path>
+            </marker>
+          </defs>
+
+          <rect x="170" y="20" width="420" height="50" rx="10" fill="var(--surface)" stroke="currentColor" stroke-width="1.5"></rect>
+          <text x="380" y="50" text-anchor="middle" font-size="13">체크 시각 도래 (모델마다 각자 타이머)</text>
+
+          <line x1="380" y1="70" x2="380" y2="108" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow2)"></line>
+
+          <rect x="170" y="112" width="420" height="64" rx="10" fill="color-mix(in srgb, var(--accent) 16%, var(--surface))" stroke="var(--accent)" stroke-width="1.5"></rect>
+          <text x="380" y="138" text-anchor="middle" font-size="12.5" font-weight="600">WebViewGate 대기열</text>
+          <text x="380" y="158" text-anchor="middle" font-size="11" fill="var(--text-muted)">동시에 하나만 · 우선순위 수동(0) &gt; 긴급(1) &gt; 일반(2)</text>
+
+          <line x1="380" y1="176" x2="380" y2="212" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow2)"></line>
+          <text x="470" y="198" font-size="10.5" fill="var(--text-muted)">차례가 옴 → 공유 WebView2 사용</text>
+
+          <rect x="170" y="216" width="420" height="52" rx="10" fill="var(--surface)" stroke="currentColor" stroke-width="1.5"></rect>
+          <text x="380" y="238" text-anchor="middle" font-size="12">HTTP로 <tspan font-weight="600">POST /v1/live/play</tspan> 직접 요청</text>
+          <text x="380" y="255" text-anchor="middle" font-size="10.5" fill="var(--text-muted)">쿠키 재사용, 페이지 이동 없음 — 1초 미만</text>
+
+          <line x1="380" y1="268" x2="380" y2="288" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow2)"></line>
+
+          <polygon points="280,340 380,290 480,340 380,390" fill="var(--surface-alt)" stroke="currentColor" stroke-width="1.5"></polygon>
+          <text x="380" y="345" text-anchor="middle" font-size="12.5">성공?</text>
+
+          <!-- 예 -> 오른쪽 상태갱신 -->
+          <line x1="480" y1="340" x2="676" y2="342" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow2)"></line>
+          <text x="560" y="330" text-anchor="middle" font-size="11" fill="var(--live)" font-weight="600">예</text>
+
+          <!-- 아니오 -> 아래 브라우저 -->
+          <line x1="380" y1="390" x2="380" y2="416" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow2)"></line>
+          <text x="380" y="408" text-anchor="middle" font-size="10.5" fill="var(--text-muted)">아니오 · 세션 관련 실패(로그인·인증·403)만</text>
+
+          <rect x="170" y="420" width="420" height="58" rx="10" fill="var(--surface)" stroke="currentColor" stroke-width="1.5"></rect>
+          <text x="380" y="443" text-anchor="middle" font-size="12">브라우저로 실제 페이지 열어서 요청 가로채기</text>
+          <text x="380" y="460" text-anchor="middle" font-size="10.5" fill="var(--text-muted)">Navigate + DevTools — 느리지만 로그인 상태 그대로 반영</text>
+
+          <line x1="380" y1="478" x2="380" y2="496" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow2)"></line>
+
+          <polygon points="280,548 380,498 480,548 380,598" fill="var(--surface-alt)" stroke="currentColor" stroke-width="1.5"></polygon>
+          <text x="380" y="553" text-anchor="middle" font-size="12.5">성공?</text>
+
+          <!-- 예 -> 오른쪽 상태갱신 (아래쪽 진입점) -->
+          <line x1="480" y1="548" x2="676" y2="378" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow2)"></line>
+          <text x="565" y="500" text-anchor="middle" font-size="11" fill="var(--live)" font-weight="600">예</text>
+
+          <!-- 아니오 -> 재시도 -->
+          <line x1="380" y1="598" x2="380" y2="626" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow2)"></line>
+          <text x="380" y="618" text-anchor="middle" font-size="10.5" fill="var(--text-muted)">아니오</text>
+
+          <rect x="150" y="630" width="460" height="122" rx="10" fill="color-mix(in srgb, var(--warn) 14%, var(--surface))" stroke="var(--warn)" stroke-width="1.5"></rect>
+          <text x="380" y="654" text-anchor="middle" font-size="12" font-weight="600">실패 종류별로 다른 간격으로 재시도</text>
+          <text x="380" y="676" text-anchor="middle" font-size="11">풀방 티켓 필요 → <tspan font-weight="600">10초</tspan> 뒤 재시도</text>
+          <text x="380" y="695" text-anchor="middle" font-size="11">세션 관련 실패(로그인·인증·403) → <tspan font-weight="600">45초</tspan> 뒤 재시도</text>
+          <text x="380" y="714" text-anchor="middle" font-size="11">최근 20분 내 방송 이력 있음 → <tspan font-weight="600">30초</tspan> 뒤 재시도</text>
+          <text x="380" y="733" text-anchor="middle" font-size="11">그 외 → 실패할 때마다 2배 (최대 <tspan font-weight="600">30분</tspan>)</text>
+
+          <!-- 재시도 루프백 -->
+          <path d="M150,690 C60,690 60,45 168,45" fill="none" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow2)"></path>
+          <text x="45" y="380" font-size="10.5" fill="var(--text-muted)" transform="rotate(-90 45 380)" text-anchor="middle">해당 간격이 지나면 다시 위에서부터</text>
+
+          <!-- 오른쪽 레인: 상태갱신 -->
+          <rect x="680" y="310" width="300" height="80" rx="10" fill="var(--surface)" stroke="currentColor" stroke-width="1.5"></rect>
+          <text x="830" y="343" text-anchor="middle" font-size="12.5">방송 상태 갱신</text>
+          <text x="830" y="362" text-anchor="middle" font-size="10.5" fill="var(--text-muted)">liveStatus · 메시지 · 스트림 URL 저장</text>
+
+          <line x1="830" y1="390" x2="830" y2="426" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow2)"></line>
+
+          <polygon points="730,480 830,430 930,480 830,530" fill="var(--surface-alt)" stroke="currentColor" stroke-width="1.5"></polygon>
+          <text x="830" y="476" text-anchor="middle" font-size="12">방송</text>
+          <text x="830" y="491" text-anchor="middle" font-size="12">중?</text>
+
+          <!-- 아니오 -> 재시도박스로 -->
+          <path d="M730,480 C560,480 560,690 616,690" fill="none" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow2)"></path>
+          <text x="640" y="602" text-anchor="middle" font-size="10.5" fill="var(--text-muted)">아니오 (오프라인) → 재시도 규칙으로</text>
+
+          <!-- 예 -> 스트림 URL -->
+          <line x1="830" y1="530" x2="830" y2="558" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow2)"></line>
+          <text x="850" y="546" font-size="11" fill="var(--live)" font-weight="600">예</text>
+
+          <rect x="680" y="562" width="300" height="66" rx="10" fill="color-mix(in srgb, var(--rec) 12%, var(--surface))" stroke="var(--rec)" stroke-width="1.5"></rect>
+          <text x="830" y="588" text-anchor="middle" font-size="12" font-weight="600">스트림 URL 획득</text>
+          <text x="830" y="606" text-anchor="middle" font-size="10.5" fill="var(--text-muted)">AWS IVS · 채널당 1회용 토큰</text>
+
+          <line x1="830" y1="628" x2="830" y2="654" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow2)"></line>
+          <text x="830" y="672" text-anchor="middle" font-size="11" fill="var(--text-muted)">→ 그림 03. 녹화 시작</text>
+        </svg>
+      </div>
+      <figcaption>
+        <code class="chip">action: watch</code> API 자체는 "방을 나간다/들어간다" 개념이 없습니다.
+        문제는 언제나 <strong>세션</strong>이었고 — HTTP가 먼저 시도해서 실패해도, 세션 문제일 때만
+        느리지만 확실한 브라우저 방식으로 한 번 더 확인합니다.
+      </figcaption>
+    </figure>
+  </section>
+
+  <div class="divider">그림 03 — WebView2와는 완전히 무관하게 흘러감</div>
+
+  <!-- ============================================================ -->
+  <!-- FIGURE 3 — 녹화 & 파일 분할 -->
+  <!-- ============================================================ -->
+  <section class="figure-block">
+    <h2>03</h2>
+    <h3>녹화는 ffmpeg의 일, 끊거나 나누는 건 방식이 다르다</h3>
+    <figure>
+      <div class="diagram-frame">
+        <svg class="flow" viewBox="0 0 1000 760" role="img" aria-label="스트림 URL로 ffmpeg가 독립적으로 녹화를 진행하다가, 파일 분할은 캐시된 URL을 재사용할 수 없어 새로 방송을 확인해 새 ffmpeg가 뜬 걸 확인한 뒤에만 기존 프로세스를 정지하고, 오프라인 감지나 종료 클릭 시에는 ffmpeg를 정지한 뒤 다시 방송을 확인해 재시작 여부를 결정하는 흐름">
+          <defs>
+            <marker id="arrow3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 Z" fill="currentColor"></path>
+            </marker>
+          </defs>
+
+          <rect x="350" y="16" width="300" height="46" rx="10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 4"></rect>
+          <text x="500" y="44" text-anchor="middle" font-size="11.5" fill="var(--text-muted)">스트림 URL + 쿠키·UA 헤더 (그림 02에서)</text>
+
+          <line x1="500" y1="62" x2="500" y2="88" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow3)"></line>
+
+          <rect x="300" y="92" width="400" height="60" rx="10" fill="color-mix(in srgb, var(--rec) 14%, var(--surface))" stroke="var(--rec)" stroke-width="1.5"></rect>
+          <text x="500" y="118" text-anchor="middle" font-size="13" font-weight="600">ffmpeg 프로세스 시작</text>
+          <text x="500" y="136" text-anchor="middle" font-size="10.5" fill="var(--text-muted)">WebView2와는 완전히 무관하게 독립 실행</text>
+
+          <line x1="500" y1="152" x2="500" y2="178" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow3)"></line>
+          <text x="500" y="170" text-anchor="middle" font-size="10.5" fill="var(--text-muted)">세그먼트를 계속 다운로드 → .ts 파일에 기록</text>
+
+          <rect x="380" y="182" width="240" height="52" rx="10" fill="color-mix(in srgb, var(--rec) 20%, var(--surface))" stroke="var(--rec)" stroke-width="2"></rect>
+          <text x="500" y="214" text-anchor="middle" font-size="14" font-weight="700">녹화 중</text>
+
+          <!-- 분기 -->
+          <line x1="500" y1="234" x2="500" y2="256" stroke="currentColor" stroke-width="1.5"></line>
+          <line x1="260" y1="256" x2="740" y2="256" stroke="currentColor" stroke-width="1.5"></line>
+          <line x1="260" y1="256" x2="260" y2="278" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow3)"></line>
+          <line x1="740" y1="256" x2="740" y2="278" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow3)"></line>
+
+          <!-- LEFT: 파일 분할 -->
+          <rect x="140" y="282" width="240" height="46" rx="10" fill="var(--surface)" stroke="currentColor" stroke-width="1.5"></rect>
+          <text x="260" y="310" text-anchor="middle" font-size="12">"파일 분할" 클릭</text>
+
+          <line x1="260" y1="328" x2="260" y2="352" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow3)"></line>
+          <text x="260" y="344" text-anchor="middle" font-size="10" fill="var(--warn)">캐시된 URL 재사용 불가 — 1회용 토큰</text>
+
+          <rect x="120" y="356" width="280" height="56" rx="10" fill="var(--surface)" stroke="currentColor" stroke-width="1.5"></rect>
+          <text x="260" y="380" text-anchor="middle" font-size="12">새로 방송 확인 (그림 02 재실행)</text>
+          <text x="260" y="397" text-anchor="middle" font-size="10.5" fill="var(--text-muted)">→ 새 ffmpeg 프로세스 시작</text>
+
+          <line x1="260" y1="412" x2="260" y2="436" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow3)"></line>
+
+          <polygon points="180,486 260,436 340,486 260,536" fill="var(--surface-alt)" stroke="currentColor" stroke-width="1.5"></polygon>
+          <text x="260" y="482" text-anchor="middle" font-size="11">새 ffmpeg</text>
+          <text x="260" y="497" text-anchor="middle" font-size="11">확인됨?</text>
+
+          <line x1="260" y1="536" x2="260" y2="560" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow3)"></line>
+          <text x="278" y="550" font-size="11" fill="var(--live)" font-weight="600">예</text>
+
+          <rect x="120" y="564" width="280" height="58" rx="10" fill="color-mix(in srgb, var(--live) 14%, var(--surface))" stroke="var(--live)" stroke-width="1.5"></rect>
+          <text x="260" y="588" text-anchor="middle" font-size="12" font-weight="600">기존 ffmpeg 정지 + 파일 교체</text>
+          <text x="260" y="606" text-anchor="middle" font-size="10.5" fill="var(--text-muted)">새 파일이 이미 돌고 있어 끊김 없음</text>
+
+          <line x1="340" y1="486" x2="410" y2="486" stroke="currentColor" stroke-width="1.5"></line>
+          <text x="415" y="470" font-size="10.5" fill="var(--text-muted)">아니오 →</text>
+          <text x="415" y="486" font-size="10.5" fill="var(--text-muted)">기존 ffmpeg 그대로 유지</text>
+          <text x="415" y="502" font-size="10.5" fill="var(--text-muted)">(실패해도 녹화는 안 끊김)</text>
+
+          <!-- RIGHT: 종료/오프라인 -->
+          <rect x="600" y="282" width="280" height="46" rx="10" fill="var(--surface)" stroke="currentColor" stroke-width="1.5"></rect>
+          <text x="740" y="310" text-anchor="middle" font-size="12">오프라인 감지 또는 "녹화 종료" 클릭</text>
+
+          <line x1="740" y1="328" x2="740" y2="352" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow3)"></line>
+
+          <rect x="600" y="356" width="280" height="52" rx="10" fill="var(--surface)" stroke="currentColor" stroke-width="1.5"></rect>
+          <text x="740" y="379" text-anchor="middle" font-size="12">ffmpeg 정지</text>
+          <text x="740" y="396" text-anchor="middle" font-size="10.5" fill="var(--text-muted)">정상 종료 요청 → 5초 뒤 강제 종료</text>
+
+          <line x1="740" y1="408" x2="740" y2="432" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow3)"></line>
+
+          <rect x="600" y="436" width="280" height="52" rx="10" fill="var(--surface)" stroke="currentColor" stroke-width="1.5"></rect>
+          <text x="740" y="459" text-anchor="middle" font-size="12">녹화 종료 후 재확인</text>
+          <text x="740" y="476" text-anchor="middle" font-size="10.5" fill="var(--text-muted)">(그림 02 재실행)</text>
+
+          <line x1="740" y1="488" x2="740" y2="512" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow3)"></line>
+
+          <polygon points="660,562 740,512 820,562 740,612" fill="var(--surface-alt)" stroke="currentColor" stroke-width="1.5"></polygon>
+          <text x="740" y="558" text-anchor="middle" font-size="11">아직</text>
+          <text x="740" y="573" text-anchor="middle" font-size="11">방송중?</text>
+
+          <path d="M660,562 C560,562 560,124 596,120" fill="none" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow3)"></path>
+          <text x="565" y="340" text-anchor="middle" font-size="10.5" fill="var(--live)" font-weight="600" transform="rotate(-90 565 340)">예 — 녹화 재시작</text>
+
+          <line x1="740" y1="612" x2="740" y2="636" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow3)"></line>
+          <text x="770" y="628" font-size="10.5" fill="var(--text-muted)">아니오</text>
+
+          <rect x="640" y="640" width="200" height="46" rx="10" fill="var(--surface-alt)" stroke="currentColor" stroke-width="1.5"></rect>
+          <text x="740" y="668" text-anchor="middle" font-size="12">대기 목록으로</text>
+        </svg>
+      </div>
+      <figcaption>
+        AWS IVS 재생 토큰에는 <code class="chip">aws:single-use-uuid</code> 클레임이 박혀 있어서
+        같은 URL로 두 번째 ffmpeg를 열면 <strong>무조건 403</strong>이 납니다. 그래서 "파일 분할"도
+        결국 새로 방송을 확인해야 하지만, 새 파일이 뜬 걸 먼저 확인하고 나서야 기존 파일을 끊기 때문에
+        실패해도 녹화 공백이 생기지 않습니다.
+      </figcaption>
+    </figure>
+  </section>
+
+  <footer class="note">
+    이 세 그림에 나온 재시도 간격 값(10초 · 45초 · 30초 · 최대 30분)과 세션 실패 판정 기준은
+    실제로 로그인 세션이 만료됐을 때의 실사용 로그를 보고 하나씩 고친 결과입니다 —
+    처음엔 "방을 나가서 재입장이 안 되는 것"이라고 짐작했지만, 실제 원인은 매번 달랐습니다.
+  </footer>
+</div>
+
+</body></html>

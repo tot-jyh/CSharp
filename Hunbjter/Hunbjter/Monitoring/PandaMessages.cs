@@ -1,8 +1,9 @@
 ﻿namespace Hunbjter;
 
 /// <summary>
-/// Platform and message predicates for pandalive. Pure string logic in one place, so the
-/// monitor, the recorder and the view all agree on what a given site message means.
+/// Platform and message predicates for pandalive (and, where noted, stripchat). Pure string
+/// logic in one place, so the monitor, the recorder and the view all agree on what a given site
+/// message means.
 /// </summary>
 internal static class PandaMessages
 {
@@ -11,6 +12,13 @@ internal static class PandaMessages
         return platform.Contains("팬더", StringComparison.OrdinalIgnoreCase)
             || platform.Contains("panda", StringComparison.OrdinalIgnoreCase)
             || profileUrl.Contains("pandalive.co.kr", StringComparison.OrdinalIgnoreCase);
+    }
+
+    public static bool IsStripchatPlatform(string platform, string profileUrl)
+    {
+        return platform.Contains("스챗", StringComparison.OrdinalIgnoreCase)
+            || platform.Contains("stripchat", StringComparison.OrdinalIgnoreCase)
+            || profileUrl.Contains("stripchat.com", StringComparison.OrdinalIgnoreCase);
     }
 
     public static bool IsAdultSessionDelay(string message)

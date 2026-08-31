@@ -92,7 +92,7 @@ internal static class GridRenderers
         e.Handled = true;
     }
 
-    public static void PaintRecIndicator(DataGridViewCellPaintingEventArgs e, bool isRecording)
+    public static void PaintRecIndicator(DataGridViewCellPaintingEventArgs e, bool isRecording, bool isPaused = false)
     {
         if (e.Graphics is null)
         {
@@ -112,6 +112,18 @@ internal static class GridRenderers
                 Theme.Tiny,
                 withDot: true);
         }
+        else if (isPaused)
+        {
+            // Distinct from REC (red) and from the plain dash: an operator paused recording
+            // manually while watch stayed on, so it won't auto-restart until they resume it.
+            Theme.DrawBadge(
+                e.Graphics,
+                e.CellBounds,
+                "일시중지",
+                Theme.Warning,
+                Theme.Blend(Theme.Warning, Theme.Surface, 0.18),
+                Theme.Tiny);
+        }
         else
         {
             DrawDash(e);
@@ -120,8 +132,13 @@ internal static class GridRenderers
         e.Handled = true;
     }
 
-    /// <summary>Clickable, like the capture button - hover just brightens the pill's fill.</summary>
-    public static void PaintWatchBadge(DataGridViewCellPaintingEventArgs e, bool enabled, bool hovered)
+    /// <summary>
+    /// Clickable, like the capture button - hover just brightens the pill's fill. <paramref name="locked"/>
+    /// mirrors the context menu's "Watch Off" item being disabled while the model is recording
+    /// (see Form1.ToggleWatch / ModelManagementForm.SetFavoriteWatch): the pill still reads "ON"
+    /// but is drawn dim and ignores hover, so it does not invite a click that will just no-op.
+    /// </summary>
+    public static void PaintWatchBadge(DataGridViewCellPaintingEventArgs e, bool enabled, bool hovered, bool locked = false)
     {
         if (e.Graphics is null)
         {
@@ -130,7 +147,11 @@ internal static class GridRenderers
 
         e.Paint(e.CellBounds, BaseParts);
 
-        if (enabled)
+        if (enabled && locked)
+        {
+            Theme.DrawBadge(e.Graphics, e.CellBounds, "ON", Theme.TextMuted, Theme.SurfaceAlt, Theme.Tiny);
+        }
+        else if (enabled)
         {
             var background = hovered
                 ? Theme.Blend(Theme.Accent, Theme.Surface, 0.32)
