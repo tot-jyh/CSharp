@@ -48,7 +48,18 @@ public sealed class PandaLiveService
         return new PandaSessionStatus(
             !string.IsNullOrWhiteSpace(cookieHeader),
             CountCookiePairs(cookieHeader),
-            !string.IsNullOrWhiteSpace(viewerUserIndex));
+            IsMeaningfulViewerUserIndex(viewerUserIndex));
+    }
+
+    /// <summary>
+    /// "0" is xDeviceInfo's own convention for "no logged-in user" (confirmed against the live
+    /// site while signed out), not a missing/failed lookup - GetViewerUserIndexAsync now returns
+    /// it as-is, so the "사용자 정보 확인/미확인" diagnostic needs to treat it as "not identified"
+    /// same as empty, or every anonymous session would misleadingly log as confirmed.
+    /// </summary>
+    private static bool IsMeaningfulViewerUserIndex(string viewerUserIndex)
+    {
+        return !string.IsNullOrWhiteSpace(viewerUserIndex) && viewerUserIndex != "0";
     }
 
     public async Task<PandaSessionStatus> PrepareSessionAsync(WebView2 webView, CancellationToken cancellationToken = default)
@@ -474,6 +485,25 @@ public sealed class PandaLiveService
             var raw = await webView.CoreWebView2.ExecuteScriptAsync(
                 """
                 (() => {
+                    // Authoritative source: the real pandalive client itself reads this exact
+                    // localStorage entry and sends it verbatim as the x-device-info header (its
+                    // shape - {t,v,ui,ck} - matches what this app builds manually byte for byte).
+                    // "0" is the site's own convention for "no logged-in user", so it is returned
+                    // as-is rather than treated as "not found" - it is a real, meaningful answer.
+                    // Everything below this is a fallback for a version of the site (or a stale
+                    // profile) where xDeviceInfo has not been set yet.
+                    try {
+                        const rawDeviceInfo = localStorage.getItem('xDeviceInfo');
+                        if (rawDeviceInfo) {
+                            const parsedDeviceInfo = JSON.parse(rawDeviceInfo);
+                            if (parsedDeviceInfo && typeof parsedDeviceInfo.ui !== 'undefined' && parsedDeviceInfo.ui !== null) {
+                                return String(parsedDeviceInfo.ui);
+                            }
+                        }
+                    } catch {
+                        // Fall through to the scan below.
+                    }
+
                     const seen = new Set();
                     const findIdx = (value) => {
                         if (!value || typeof value !== 'object' || seen.has(value)) {

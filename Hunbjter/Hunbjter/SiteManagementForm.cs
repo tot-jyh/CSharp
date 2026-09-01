@@ -27,6 +27,16 @@ public sealed class SiteManagementForm : ThemedDialog
 
     private SiteSettingsDocument document;
     private SiteProfile? selectedSite;
+
+    /// <summary>
+    /// Rebuilt fresh by <see cref="CreateSiteEditor"/> every time a site tab is (re)shown - the
+    /// top "연결" button (built once, in a different part of the layout) needs a stable reference
+    /// to whichever instance is currently on screen so its login-automation result message
+    /// actually reaches the user. It used to write into a throwaway, never-added Label instead,
+    /// so a login automation failure (e.g. "아이디 입력칸을 찾지 못했습니다") was silently
+    /// discarded and the button looked like it had done something even when it had not.
+    /// </summary>
+    private Label siteStatusLabel = new();
     private CoreWebView2DevToolsProtocolEventReceiver? requestWillBeSentReceiver;
     private CoreWebView2DevToolsProtocolEventReceiver? responseReceivedReceiver;
     private string networkCapturePath = "";
@@ -68,6 +78,13 @@ public sealed class SiteManagementForm : ThemedDialog
         Text = Texts.SiteManagement;
         Size = new Size(1040, 700);
         MinimumSize = new Size(880, 560);
+        // Opens maximized: the embedded browser pane needs to be wide enough that pandalive
+        // renders its normal desktop header ("로그인 / 회원가입") instead of dropping to a
+        // narrower responsive layout that changes the button's actual text - which is what was
+        // making the login automation unable to find it at this dialog's default (non-maximized)
+        // width. Maximizing is more robust than just picking a bigger fixed Size, since it scales
+        // with whatever monitor the user has instead of a guessed pixel width.
+        WindowState = FormWindowState.Maximized;
 
         rootLayout.BackColor = Theme.Background;
         rootLayout.ColumnCount = 1;
@@ -246,8 +263,7 @@ public sealed class SiteManagementForm : ThemedDialog
         }
 
         var password = LoginSettingsStore.UnprotectPassword(selectedSite.EncryptedPassword);
-        using var statusHost = new Label();
-        await ConnectAsync(selectedSite, password, connectButton, statusHost);
+        await ConnectAsync(selectedSite, password, connectButton, siteStatusLabel);
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e)
@@ -377,7 +393,7 @@ public sealed class SiteManagementForm : ThemedDialog
         passwordTextBox.Text = LoginSettingsStore.UnprotectPassword(site.EncryptedPassword);
         passwordTextBox.TextChanged += (_, _) => site.EncryptedPassword = LoginSettingsStore.ProtectPassword(passwordTextBox.Text);
 
-        var statusLabel = new Label
+        siteStatusLabel = new Label
         {
             AutoEllipsis = true,
             BackColor = Color.Transparent,
@@ -391,7 +407,7 @@ public sealed class SiteManagementForm : ThemedDialog
         panel.Controls.Add(CreateFieldPanel(Texts.UrlLabel, urlTextBox), 0, 1);
         panel.Controls.Add(CreateFieldPanel(Texts.IdLabel, idTextBox), 0, 2);
         panel.Controls.Add(CreateFieldPanel(Texts.PasswordLabel, passwordTextBox), 0, 3);
-        panel.Controls.Add(statusLabel, 0, 5);
+        panel.Controls.Add(siteStatusLabel, 0, 5);
 
         editorLayout.Controls.Add(panel, 0, 0);
         return editorLayout;

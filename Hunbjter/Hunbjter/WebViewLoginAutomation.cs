@@ -166,11 +166,16 @@ public sealed class WebViewLoginAutomation : ILoginAutomation
                             return exact;
                         }
 
+                        // The embedded WebView2 pane is narrower than a normal browser window, so
+                        // the site's own responsive layout can drop down to a breakpoint where this
+                        // button's actual DOM text is just "회원가입" with "로그인" gone entirely
+                        // (not just visually clipped) - match either half, since clicking either
+                        // opens the same modal with both 로그인/회원가입 tabs.
                         const fallback = clickables()
                             .filter(element => {
                                 const rect = element.getBoundingClientRect();
                                 const text = textOf(element);
-                                return text.includes('로그인')
+                                return (text.includes('로그인') || text.includes('회원가입'))
                                     && rect.top < 90
                                     && rect.right > window.innerWidth - 260;
                             })

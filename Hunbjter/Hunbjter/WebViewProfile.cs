@@ -16,7 +16,19 @@ internal static class WebViewProfile
 
         return new CoreWebView2CreationProperties
         {
-            UserDataFolder = UserDataFolder
+            UserDataFolder = UserDataFolder,
+
+            // loginBrowserForm - the host of this shared WebView2 - stays Hide()'d whenever the
+            // user isn't actively using 사이트관리, which is most of the app's runtime (every
+            // background live check runs through it too). Chromium throttles JS timers hard in an
+            // occluded/hidden window, and pandalive appears to lean on a JS-driven session/token
+            // refresh (GetViewerUserIndexAsync scans localStorage/window state for it) - so while
+            // hidden, that refresh barely runs and the session decays (cookie count observed
+            // shrinking check to check), while a normal always-visible browser tab never sees
+            // this because it's never occluded. These three flags are the standard trio
+            // Electron/CEF apps use to make a background window's JS behave as if foregrounded.
+            AdditionalBrowserArguments =
+                "--disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-renderer-backgrounding"
         };
     }
 

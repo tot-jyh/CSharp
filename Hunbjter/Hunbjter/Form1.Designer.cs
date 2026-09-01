@@ -261,7 +261,7 @@
             favoritesGridView.ColumnHeadersDefaultCellStyle = dataGridViewCellStyle1;
             favoritesGridView.ColumnHeadersHeight = 34;
             favoritesGridView.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
-            favoritesGridView.Columns.AddRange(new DataGridViewColumn[] { dummyColumn, numberColumn, platformColumn, watchColumn, nameColumn, enabledColumn, recordingColumn, resolutionColumn, lastSeenColumn, lastCheckColumn, fileSizeColumn, instantCaptureColumn });
+            favoritesGridView.Columns.AddRange(new DataGridViewColumn[] { dummyColumn, numberColumn, platformColumn, nameColumn, watchColumn, enabledColumn, recordingColumn, resolutionColumn, lastSeenColumn, lastCheckColumn, fileSizeColumn, instantCaptureColumn });
             favoritesGridView.ContextMenuStrip = favoriteContextMenu;
             dataGridViewCellStyle2.Alignment = DataGridViewContentAlignment.MiddleCenter;
             dataGridViewCellStyle2.BackColor = Color.FromArgb(23, 26, 32);
@@ -373,7 +373,7 @@
             // watchColumn
             // 
             watchColumn.FillWeight = 76F;
-            watchColumn.HeaderText = "감시";
+            watchColumn.HeaderText = "감시중";
             watchColumn.MinimumWidth = 56;
             watchColumn.Name = "watchColumn";
             watchColumn.ReadOnly = true;

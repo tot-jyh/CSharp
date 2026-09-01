@@ -153,10 +153,13 @@ internal static class GridRenderers
         }
         else if (enabled)
         {
-            var background = hovered
-                ? Theme.Blend(Theme.Accent, Theme.Surface, 0.32)
-                : Theme.Blend(Theme.Accent, Theme.Surface, 0.18);
-            Theme.DrawBadge(e.Graphics, e.CellBounds, "ON", Theme.Accent, background, Theme.Tiny);
+            // Solid fill (not the translucent tint every other badge uses) - watch on/off is the
+            // one toggle in this grid the user scans for at a glance, so it gets a loud, distinct
+            // treatment instead of blending into the row. Yellow (Theme.Warning) rather than the
+            // blue accent so it doesn't get lost among the other blue "primary" chrome elsewhere
+            // in the UI - dark text reads better than white against this brightness.
+            var background = hovered ? Theme.Blend(Color.White, Theme.Warning, 0.15) : Theme.Warning;
+            Theme.DrawBadge(e.Graphics, e.CellBounds, "ON", Theme.Background, background, Theme.SmallBold);
         }
         else
         {

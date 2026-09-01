@@ -36,7 +36,7 @@
         private static readonly TimeSpan RecordingFileSizeInterval = TimeSpan.FromSeconds(10);
         private LoginSettings settings = new();
         private FavoritesDocument favorites = new();
-        private int favoriteSortColumn = 4; // 모델 (name column - shifted right when watchColumn moved before it)
+        private int favoriteSortColumn = 3; // 모델 (name column)
         private SortOrder favoriteSortOrder = SortOrder.Ascending;
         private bool closingConfirmed;
         private bool isShuttingDown;
@@ -256,7 +256,7 @@
             // fixed (0..11) either way - hiding a column only affects rendering/hit-testing, not
             // its Index, so every Cells[10]/Cells[11]/switch(ColumnIndex)/sort-by-index elsewhere
             // in this file keeps working unmodified for both grids. Column order (see the
-            // AddRange in Form1.Designer.cs): 0 dummy, 1 #, 2 사이트, 3 감시, 4 모델, 5 상태,
+            // AddRange in Form1.Designer.cs): 0 dummy, 1 #, 2 사이트, 3 모델, 4 감시중, 5 상태,
             // 6 녹화, 7 해상도, 8 마지막 방송, 9 마지막 확인, 10 파일 크기, 11 순간기록.
             liveFavoritesGridView.Columns[9].Visible = false; // 마지막 확인 - 방송중인 항목은 계속 갱신되므로 불필요
 
@@ -451,7 +451,7 @@
             grid.Columns[1].DefaultCellStyle.ForeColor = Theme.TextMuted;
             grid.Columns[1].DefaultCellStyle.Font = Theme.Small;
             grid.Columns[2].DefaultCellStyle.ForeColor = Theme.TextSecondary;
-            grid.Columns[4].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleLeft;
+            grid.Columns[3].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleLeft;
 
             foreach (var index in new[] { 7, 8, 9, 10 })
             {
@@ -975,8 +975,8 @@
                     "",
                     sequence.ToString(),
                     favorite.Platform,
-                    GetWatchText(favorite),
                     FormatDisplayNameWithUserId(favorite),
+                    GetWatchText(favorite),
                     GetFavoriteStatusText(favorite),
                     GetRecordingText(favorite),
                     GetResolutionText(favorite),
@@ -1014,8 +1014,8 @@
             {
                 1 => CompareNullableDates(left.CreatedAt, right.CreatedAt),
                 2 => CompareText(left.Platform, right.Platform),
-                3 => CompareText(GetWatchText(left), GetWatchText(right)),
-                4 => CompareText(left.DisplayName, right.DisplayName),
+                3 => CompareText(left.DisplayName, right.DisplayName),
+                4 => CompareText(GetWatchText(left), GetWatchText(right)),
                 5 => CompareText(GetFavoriteStatusText(left), GetFavoriteStatusText(right)),
                 6 => CompareText(GetRecordingText(left), GetRecordingText(right)),
                 7 => CompareText(GetResolutionText(left), GetResolutionText(right)),
@@ -1278,7 +1278,7 @@
 
             switch (e.ColumnIndex)
             {
-                case 3:
+                case 4:
                     ToggleWatch(favorite);
                     break;
                 case 11:
@@ -1311,14 +1311,14 @@
             switch (e.ColumnIndex)
             {
                 case 3:
+                    GridRenderers.PaintNameTwoLine(e, favorite);
+                    break;
+                case 4:
                     GridRenderers.PaintWatchBadge(
                         e,
                         favorite.Enabled,
                         hoverInteractiveCell == (e.RowIndex, e.ColumnIndex),
                         locked: favorite.Enabled && isRecording);
-                    break;
-                case 4:
-                    GridRenderers.PaintNameTwoLine(e, favorite);
                     break;
                 case 5:
                     GridRenderers.PaintStatusBadge(e, GetFavoriteStatusText(favorite));
@@ -1347,7 +1347,7 @@
             // Locked the same way the badge is painted (favorite.Enabled && isRecording) - a
             // hand cursor here would invite a click that ToggleWatch just no-ops on.
             var overWatchBadge = isFavoriteRow
-                && e.ColumnIndex == 3
+                && e.ColumnIndex == 4
                 && !(rowFavorite!.Enabled && recordingSessions.ContainsKey(rowFavorite.Id));
             var overCaptureButton = isFavoriteRow
                 && e.ColumnIndex == 11
