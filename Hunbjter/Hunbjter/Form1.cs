@@ -79,6 +79,7 @@
             recordingFileSizeTimer.Start();
             Shown += Form1_Shown;
             LoadSettings();
+            RestoreWindowPosition();
             LoadFavorites();
 
 #if DEBUG
@@ -162,6 +163,16 @@
             }
 
             isShuttingDown = true;
+
+            // RestoreBounds (rather than Location) only while actually maximized/minimized - it's
+            // the documented way to recover the pre-maximize position, but is not reliably kept in
+            // sync otherwise (observed stuck at the WinForms (-1,-1) "never captured" sentinel for
+            // a window that had only ever been moved, never maximized), so Normal state saves
+            // Location directly instead.
+            var savedLocation = WindowState == FormWindowState.Normal ? Location : RestoreBounds.Location;
+            settings.WindowX = savedLocation.X;
+            settings.WindowY = savedLocation.Y;
+            settingsStore.Save(settings);
 
             // Cancel and abandon: awaiting the monitor loops here would deadlock, because their
             // continuations need the message pump this thread is about to stop running.
@@ -626,6 +637,35 @@
             settings = settingsStore.Load();
 
             SetStatus("사이트관리에서 로그인 정보를 관리하세요.");
+        }
+
+        /// <summary>
+        /// Startup-only (called once from the constructor, not from every <see cref="LoadSettings"/>
+        /// call) - places the window where it was last closed. Falls back to
+        /// <see cref="FormStartPosition.CenterScreen"/>, same as a fresh install with no saved
+        /// position, if that position would land outside every currently connected monitor (e.g.
+        /// the app was last closed on a second monitor that is now unplugged) - a saved position
+        /// applied blindly could otherwise put the window somewhere the user can never see it.
+        /// </summary>
+        private void RestoreWindowPosition()
+        {
+            if (settings.WindowX is not { } x || settings.WindowY is not { } y)
+            {
+                StartPosition = FormStartPosition.CenterScreen;
+                return;
+            }
+
+            var candidate = new Rectangle(new Point(x, y), Size);
+            var onScreen = Screen.AllScreens.Any(screen => screen.WorkingArea.IntersectsWith(candidate));
+
+            if (!onScreen)
+            {
+                StartPosition = FormStartPosition.CenterScreen;
+                return;
+            }
+
+            StartPosition = FormStartPosition.Manual;
+            Location = candidate.Location;
         }
 
         private void Form1_Shown(object? sender, EventArgs e)

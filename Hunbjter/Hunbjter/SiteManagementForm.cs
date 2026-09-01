@@ -78,13 +78,6 @@ public sealed class SiteManagementForm : ThemedDialog
         Text = Texts.SiteManagement;
         Size = new Size(1040, 700);
         MinimumSize = new Size(880, 560);
-        // Opens maximized: the embedded browser pane needs to be wide enough that pandalive
-        // renders its normal desktop header ("로그인 / 회원가입") instead of dropping to a
-        // narrower responsive layout that changes the button's actual text - which is what was
-        // making the login automation unable to find it at this dialog's default (non-maximized)
-        // width. Maximizing is more robust than just picking a bigger fixed Size, since it scales
-        // with whatever monitor the user has instead of a guessed pixel width.
-        WindowState = FormWindowState.Maximized;
 
         rootLayout.BackColor = Theme.Background;
         rootLayout.ColumnCount = 1;

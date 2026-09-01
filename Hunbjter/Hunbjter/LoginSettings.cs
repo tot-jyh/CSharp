@@ -17,4 +17,13 @@ public sealed class LoginSettings
     public int RecordingStopAfterOfflineChecks { get; set; } = 2;
 
     public int HighlightCaptureSeconds { get; set; } = 60;
+
+    /// <summary>
+    /// Main window's last normal (non-maximized/minimized) position. Null means "never saved
+    /// yet" (fresh install or an older settings.json) - Form1 leaves the OS to pick a default
+    /// position in that case instead of forcing (0,0).
+    /// </summary>
+    public int? WindowX { get; set; }
+
+    public int? WindowY { get; set; }
 }
