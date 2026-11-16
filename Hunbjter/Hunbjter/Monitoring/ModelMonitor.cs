@@ -366,7 +366,18 @@ public sealed class ModelMonitor : IAsyncDisposable
                 return Finish(wasLive, false);
             }
 
-            RegisterFailure();
+            // A password-protected room is a normal, ongoing situation, not a malfunction: keep
+            // showing the message (Error state) but check again on the regular configured
+            // interval instead of letting it escalate into FailureBackoffRule's long waits.
+            if (PandaMessages.IsPasswordRoom(status.Message))
+            {
+                ConsecutiveFailures = 0;
+            }
+            else
+            {
+                RegisterFailure();
+            }
+
             State = LiveState.Error;
             ClearPlayback();
             RaiseLog($"{Favorite.DisplayName}: 확인 실패 - {status.Message}");

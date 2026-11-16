@@ -77,6 +77,12 @@ public sealed class ThemedMaskedTextBox : MaskedTextBox
         Font = Theme.Base;
         Mask = "00:00:00";
         InsertKeyMode = InsertKeyMode.Overwrite;
+
+        // MaskedTextBox does not support IME composition. With the Korean IME in Hangul mode,
+        // keystrokes go through composition instead of reaching the mask as plain digits, which
+        // scrambles the field (e.g. "3 _:1 _:__") and makes it look un-editable. This is only
+        // digits anyway, so turn the IME off while the field has focus.
+        ImeMode = ImeMode.Disable;
     }
 }
 

@@ -1,4 +1,6 @@
-﻿namespace Hunbjter
+﻿using System.Diagnostics;
+
+namespace Hunbjter
 {
     public partial class Form1 : ThemedForm, IRecordingCoordinator
     {
@@ -10,7 +12,6 @@
         private readonly StripchatService stripchatService = new();
         private readonly RecordingService recordingService = new();
         private readonly LoginBrowserForm loginBrowserForm = new();
-        private readonly ClipForm clipForm;
         private readonly WebViewGate webViewGate;
         private readonly CancellationTokenSource shutdownCts = new();
         private readonly Dictionary<string, RecordingSession> recordingSessions = new(StringComparer.OrdinalIgnoreCase);
@@ -24,6 +25,8 @@
         private readonly SectionHeader standbyHeader = new();
         private readonly ThemedComboBox liveSiteFilterComboBox = new();
         private readonly ThemedComboBox standbySiteFilterComboBox = new();
+        private readonly ThemedButton standbyScrollUpButton = new();
+        private readonly ThemedButton standbyScrollDownButton = new();
         private string liveFilterPlatform = "";
         private string standbyFilterPlatform = "";
         private bool populatingLiveFilter;
@@ -41,15 +44,16 @@
         private bool closingConfirmed;
         private bool isShuttingDown;
         private bool logCollapsed = true;
+        private string baseWindowTitle = "";
 
         public Form1()
         {
             webViewGate = new WebViewGate(() => loginBrowserForm.WebView);
-            clipForm = new ClipForm(() => settings.FfmpegPath, AddLog);
             favoritesPersistence = new FavoritesPersistence(favoriteStore);
             favoritesPersistence.SaveFailed += (_, e) => AddLog(e.Message);
             liveStatusProbe = new WebViewLiveStatusProbe(pandaLiveService, stripchatService);
             liveStatusProbe.LogRequested += (_, e) => AddLog(e.Message);
+            liveStatusProbe.PandaSessionChecked += (_, loggedIn) => SetPandaLoginTitle(loggedIn);
 
             monitorRoster = new MonitorRoster(new MonitorContext(
                 liveStatusProbe,
@@ -68,6 +72,7 @@
             monitorRoster.StatusChanged += monitorRoster_StatusChanged;
 
             InitializeComponent();
+            baseWindowTitle = Text;
             ApplyTheme();
             ApplyLogVisibility();
             ConfigureSplitFavoriteGrids();
@@ -277,6 +282,14 @@
             favoritesGridView.Columns[10].Visible = false; // 파일 크기
             favoritesGridView.Columns[11].Visible = false; // 순간기록
 
+            // 감시중 shows to the left of 모델 in both grids. DisplayIndex only changes the visual
+            // order - Column.Index stays 4 (and 모델 stays 3) - so every switch(ColumnIndex) and
+            // Cells[n] elsewhere in this file keeps working unmodified.
+            foreach (var grid in new DataGridView[] { favoritesGridView, liveFavoritesGridView })
+            {
+                grid.Columns[4].DisplayIndex = grid.Columns[3].DisplayIndex;
+            }
+
             liveHeader.Title = "방송중";
             liveHeader.DotColor = Theme.Live;
 
@@ -314,19 +327,49 @@
             liveHeaderPanel.Controls.Add(liveHeader, 0, 0);
             liveHeaderPanel.Controls.Add(liveSiteFilterComboBox, 1, 0);
 
+            // Lets the user nudge the standby grid's scroll position one row at a time without
+            // grabbing the scrollbar thumb, which is fiddly at this grid's row height.
+            var standbyScrollPanel = new FlowLayoutPanel
+            {
+                BackColor = Color.Transparent,
+                Dock = DockStyle.Fill,
+                FlowDirection = FlowDirection.LeftToRight,
+                Margin = new Padding(0),
+                WrapContents = false
+            };
+            standbyScrollUpButton.Text = "▲";
+            standbyScrollDownButton.Text = "▼";
+            foreach (var scrollButton in new[] { standbyScrollUpButton, standbyScrollDownButton })
+            {
+                scrollButton.Variant = ButtonVariant.Ghost;
+                scrollButton.Size = new Size(26, 26);
+                scrollButton.Margin = new Padding(0, 3, 4, 3);
+            }
+            standbyScrollUpButton.Click += (_, _) => ScrollFavoriteGrid(favoritesGridView, -1);
+            standbyScrollDownButton.Click += (_, _) => ScrollFavoriteGrid(favoritesGridView, 1);
+            standbyScrollPanel.Controls.Add(standbyScrollUpButton);
+            standbyScrollPanel.Controls.Add(standbyScrollDownButton);
+
+            // Title gets a fixed width (instead of the Percent column liveHeaderPanel uses) so the
+            // scroll buttons sit immediately to its right - a Percent title column would stretch
+            // to fill all the leftover space, pushing the buttons out to the far right edge next
+            // to the filter box instead of reading as "next to 대기 목록".
             var standbyHeaderPanel = new TableLayoutPanel
             {
                 BackColor = Color.Transparent,
-                ColumnCount = 2,
+                ColumnCount = 4,
                 Dock = DockStyle.Fill,
                 Margin = new Padding(0),
                 RowCount = 1
             };
+            standbyHeaderPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140F));
+            standbyHeaderPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 64F));
             standbyHeaderPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
             standbyHeaderPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110F));
             standbyHeaderPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             standbyHeaderPanel.Controls.Add(standbyHeader, 0, 0);
-            standbyHeaderPanel.Controls.Add(standbySiteFilterComboBox, 1, 0);
+            standbyHeaderPanel.Controls.Add(standbyScrollPanel, 1, 0);
+            standbyHeaderPanel.Controls.Add(standbySiteFilterComboBox, 3, 0);
 
             favoritePanel.SuspendLayout();
             favoritePanel.Controls.Clear();
@@ -341,6 +384,22 @@
             favoritePanel.Controls.Add(standbyHeaderPanel, 0, 2);
             favoritePanel.Controls.Add(favoritesGridView, 0, 3);
             favoritePanel.ResumeLayout(false);
+        }
+
+        /// <summary>Moves a grid's visible window up or down by exactly one row.</summary>
+        private static void ScrollFavoriteGrid(DataGridView grid, int rowDelta)
+        {
+            if (grid.Rows.Count == 0)
+            {
+                return;
+            }
+
+            var current = Math.Max(grid.FirstDisplayedScrollingRowIndex, 0);
+            var next = Math.Clamp(current + rowDelta, 0, grid.Rows.Count - 1);
+            if (next != current)
+            {
+                grid.FirstDisplayedScrollingRowIndex = next;
+            }
         }
 
         /// <summary>
@@ -719,6 +778,7 @@
                 // A (re)login just happened here, or was at least attempted - any model stuck
                 // on a session-related failure is worth an immediate recheck.
                 RequestImmediateRecheckForStaleFavorites("사이트 설정 변경 후 재확인");
+                await UpdateSiteLoginStatusAsync();
 
                 if (result == DialogResult.OK)
                 {
@@ -733,6 +793,51 @@
             await Task.CompletedTask;
         }
 
+        /// <summary>
+        /// Reflects pandalive's real login state in the window title, right next to the caption
+        /// bar. CookieCount alone is not a reliable "logged in" signal - a guest session still
+        /// picks up basic cookies - so this reads HasViewerUserIndex instead, which
+        /// PandaLiveService only sets once it finds a real numeric user idx.
+        /// Stripchat is deliberately left out for now: its equivalent signal (a JWT from
+        /// initial-dynamic) turned out to be handed out to guest visitors too, so it read "ON"
+        /// even fully logged out - showing it here would just be misleading until a real
+        /// logged-in-vs-guest field is found in that endpoint's response.
+        /// </summary>
+        private async Task UpdateSiteLoginStatusAsync()
+        {
+            try
+            {
+                using var lease = await webViewGate.AcquireAsync(GatePriority.Manual, shutdownCts.Token);
+                // Reload the home page before reading: right after a login in 사이트관리 the shared
+                // WebView2 is still sitting on the page it logged in from, whose JS/localStorage
+                // state (xDeviceInfo "ui") can still be the pre-login guest value "0" - reading it
+                // without a fresh page load reported "(팬더 OFF)" even though the login worked.
+                var pandaStatus = await pandaLiveService.PrepareSessionAsync(lease.WebView, shutdownCts.Token);
+
+                SetPandaLoginTitle(pandaStatus.HasViewerUserIndex);
+                AddLog($"팬더 로그인 상태: {(pandaStatus.HasViewerUserIndex ? "ON" : "OFF")} ({pandaStatus.Detail})");
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                AddLog($"사이트 로그인 상태 확인 실패: {ex.Message}");
+            }
+        }
+
+        private void SetPandaLoginTitle(bool loggedIn)
+        {
+            if (InvokeRequired)
+            {
+                BeginInvoke(() => SetPandaLoginTitle(loggedIn));
+                return;
+            }
+
+            Text = $"{baseWindowTitle} (팬더 {(loggedIn ? "ON" : "OFF")})";
+        }
+
         private void environmentSettingsButton_Click(object sender, EventArgs e)
         {
             ShowEnvironmentSettings();
@@ -740,23 +845,35 @@
 
         private void clipButton_Click(object sender, EventArgs e)
         {
-            ShowClipForm();
+            LaunchVideoPlayer();
         }
 
         /// <summary>
-        /// Non-modal, singleton, same pattern as <see cref="ShowLoginBrowser"/> - Clip doesn't
-        /// touch favorites/site config, so unlike 사이트관리/모델관리 it needs no
-        /// monitorRoster.Suspend()/Resume() around it.
+        /// Starts the external player registered in 환경설정. The working directory is the exe's own
+        /// folder so a player that loads sibling DLLs (e.g. libmpv) finds them.
         /// </summary>
-        private void ShowClipForm()
+        private void LaunchVideoPlayer()
         {
-            if (clipForm.Visible)
+            var playerPath = settings.VideoPlayerPath;
+            if (string.IsNullOrWhiteSpace(playerPath) || !File.Exists(playerPath))
             {
-                clipForm.Activate();
+                SetStatus("환경설정에서 동영상 플레이어 경로를 지정하세요.");
                 return;
             }
 
-            clipForm.Show(this);
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = playerPath,
+                    WorkingDirectory = Path.GetDirectoryName(playerPath) ?? "",
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                SetStatus($"플레이어 실행 실패: {ex.Message}");
+            }
         }
 
         private async void modelManagementButton_Click(object sender, EventArgs e)

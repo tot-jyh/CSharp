@@ -20,10 +20,30 @@ internal static class JsonFileStore
 
     public static string ResolvePath(string fileName)
     {
-        return Path.Combine(
+        // Next to the exe, so the settings travel with the app folder and survive a C: reformat
+        // when the app lives on another drive.
+        var path = Path.Combine(AppContext.BaseDirectory, fileName);
+
+        // One-time carry-over from the old %APPDATA%\Hunbjter location.
+        var legacyPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "Hunbjter",
             fileName);
+        if (!File.Exists(path) && File.Exists(legacyPath))
+        {
+            try
+            {
+                File.Copy(legacyPath, path);
+            }
+            catch (IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
+        }
+
+        return path;
     }
 
     /// <summary>

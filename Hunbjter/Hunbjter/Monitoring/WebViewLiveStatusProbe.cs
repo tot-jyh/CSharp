@@ -19,6 +19,11 @@ public sealed class WebViewLiveStatusProbe : ILiveStatusProbe
 
     public event EventHandler<MonitorLogEventArgs>? LogRequested;
 
+    /// <summary>Raised after every 팬더 session prep with whether a real logged-in user was found
+    /// (HasViewerUserIndex) - lets the main window keep its "(팬더 ON/OFF)" title current instead
+    /// of only checking once right after 사이트관리 closes.</summary>
+    public event EventHandler<bool>? PandaSessionChecked;
+
     public async Task<PandaLiveStatus> ProbeAsync(WebViewLease lease, FavoriteItem favorite, CancellationToken cancellationToken)
     {
         if (PandaMessages.IsStripchatPlatform(favorite.Platform, favorite.ProfileUrl))
@@ -43,7 +48,7 @@ public sealed class WebViewLiveStatusProbe : ILiveStatusProbe
 
         // A stale or unauthorized session is worth one re-prepare before reporting failure.
         Log($"{favorite.DisplayName}: 세션 상태 재확인 중");
-        await PrepareOneAsync(pandaService.PrepareSessionAsync, lease, "세션 재준비 (팬더)", cancellationToken);
+        await PrepareOneAsync(pandaService.PrepareSessionAsync, lease, "세션 재준비 (팬더)", cancellationToken, isPanda: true);
 
         return await pandaService.GetLiveStatusAsync(lease.WebView, favorite.PlatformUserId, cancellationToken);
     }
@@ -57,7 +62,7 @@ public sealed class WebViewLiveStatusProbe : ILiveStatusProbe
     /// </summary>
     public async Task PrepareSessionAsync(WebViewLease lease, string reason, CancellationToken cancellationToken)
     {
-        await PrepareOneAsync(pandaService.PrepareSessionAsync, lease, $"{reason} (팬더)", cancellationToken);
+        await PrepareOneAsync(pandaService.PrepareSessionAsync, lease, $"{reason} (팬더)", cancellationToken, isPanda: true);
         await PrepareOneAsync(stripchatService.PrepareSessionAsync, lease, $"{reason} (스챗)", cancellationToken);
     }
 
@@ -65,12 +70,18 @@ public sealed class WebViewLiveStatusProbe : ILiveStatusProbe
         Func<Microsoft.Web.WebView2.WinForms.WebView2, CancellationToken, Task<PandaSessionStatus>> prepare,
         WebViewLease lease,
         string reason,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool isPanda = false)
     {
         try
         {
             var session = await prepare(lease.WebView, cancellationToken);
-            Log($"{reason}: 쿠키 {session.CookieCount}개, 사용자 정보 {(session.HasViewerUserIndex ? "확인" : "미확인")}");
+            Log($"{reason}: 쿠키 {session.CookieCount}개, 사용자 정보 {(session.HasViewerUserIndex ? "확인" : "미확인")}"
+                + (string.IsNullOrEmpty(session.Detail) ? "" : $" ({session.Detail})"));
+            if (isPanda)
+            {
+                PandaSessionChecked?.Invoke(this, session.HasViewerUserIndex);
+            }
         }
         catch (OperationCanceledException)
         {

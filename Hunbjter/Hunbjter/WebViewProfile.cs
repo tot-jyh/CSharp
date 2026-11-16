@@ -5,10 +5,8 @@ namespace Hunbjter;
 
 internal static class WebViewProfile
 {
-    private static readonly string UserDataFolder = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "Hunbjter",
-        "WebView2Profile");
+    // Next to the exe (like the JSON settings) so browser logins also survive a C: reformat.
+    private static readonly string UserDataFolder = Path.Combine(AppContext.BaseDirectory, "WebView2Profile");
 
     public static CoreWebView2CreationProperties CreateCreationProperties()
     {

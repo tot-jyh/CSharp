@@ -16,6 +16,8 @@ public sealed class ClipForm : ThemedDialog
 {
     private readonly Func<string> getFfmpegPath;
     private readonly Action<string> log;
+    private readonly Func<Point?> getSavedLocation;
+    private readonly Action<Point> saveLocation;
     private readonly ClipService clipService = new();
 
     private string currentFilePath = "";
@@ -39,16 +41,46 @@ public sealed class ClipForm : ThemedDialog
     /// it in place - capturing the object itself at construction time would go stale the first
     /// time that happens, since this form is a long-lived singleton created once.
     /// </summary>
-    public ClipForm(Func<string> getFfmpegPath, Action<string> log)
+    public ClipForm(
+        Func<string> getFfmpegPath,
+        Action<string> log,
+        Func<Point?> getSavedLocation,
+        Action<Point> saveLocation)
     {
         this.getFfmpegPath = getFfmpegPath;
         this.log = log;
+        this.getSavedLocation = getSavedLocation;
+        this.saveLocation = saveLocation;
 
         InitializeComponent();
     }
 
+    /// <summary>
+    /// Puts the window back where it was last closed. A saved spot that no longer lies on any
+    /// connected monitor (e.g. last used on a second monitor that is now powered off) is
+    /// ignored and the window is centered on its owner instead, so it never opens somewhere
+    /// the user cannot see.
+    /// </summary>
+    public void RestoreLocation()
+    {
+        if (getSavedLocation() is { } saved
+            && Screen.AllScreens.Any(screen => screen.WorkingArea.IntersectsWith(new Rectangle(saved, Size))))
+        {
+            StartPosition = FormStartPosition.Manual;
+            Location = saved;
+            return;
+        }
+
+        StartPosition = FormStartPosition.CenterParent;
+    }
+
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
+        if (Visible)
+        {
+            saveLocation(WindowState == FormWindowState.Normal ? Location : RestoreBounds.Location);
+        }
+
         // Same singleton-hide pattern as LoginBrowserForm: the header button reopens the same
         // window (with whatever segments are still queued) rather than rebuilding it each time.
         if (!closingForDispose && e.CloseReason == CloseReason.UserClosing)

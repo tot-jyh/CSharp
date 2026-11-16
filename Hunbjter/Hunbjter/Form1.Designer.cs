@@ -161,7 +161,7 @@
             clipButton.Name = "clipButton";
             clipButton.Size = new Size(100, 32);
             clipButton.TabIndex = 3;
-            clipButton.Text = "Clip";
+            clipButton.Text = "Player";
             clipButton.UseVisualStyleBackColor = false;
             clipButton.Click += clipButton_Click;
             //

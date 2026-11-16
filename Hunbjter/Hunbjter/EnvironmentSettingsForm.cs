@@ -7,6 +7,7 @@ public sealed class EnvironmentSettingsForm : ThemedDialog
     private readonly LoginSettings settings;
     private readonly ThemedTextBox ffmpegPathTextBox = new();
     private readonly ThemedTextBox recordingDirectoryTextBox = new();
+    private readonly ThemedTextBox videoPlayerPathTextBox = new();
     private readonly ThemedNumeric modelCheckIntervalSecondsInput = CreateNumeric(10, 86400, 10);
     private readonly ThemedNumeric recordingStopAfterOfflineChecksInput = CreateNumeric(1, 10, 1);
     private readonly ThemedNumeric highlightCaptureSecondsInput = CreateNumeric(5, 3600, 5);
@@ -18,6 +19,7 @@ public sealed class EnvironmentSettingsForm : ThemedDialog
         InitializeComponent();
         ffmpegPathTextBox.Text = settings.FfmpegPath;
         recordingDirectoryTextBox.Text = settings.RecordingDirectory;
+        videoPlayerPathTextBox.Text = settings.VideoPlayerPath;
         modelCheckIntervalSecondsInput.Value = Math.Clamp(settings.ModelCheckIntervalSeconds > 0 ? settings.ModelCheckIntervalSeconds : 300, 10, 86400);
         recordingStopAfterOfflineChecksInput.Value = Math.Clamp(settings.RecordingStopAfterOfflineChecks > 0 ? settings.RecordingStopAfterOfflineChecks : 2, 1, 10);
         highlightCaptureSecondsInput.Value = Math.Clamp(settings.HighlightCaptureSeconds > 0 ? settings.HighlightCaptureSeconds : 60, 5, 3600);
@@ -26,6 +28,8 @@ public sealed class EnvironmentSettingsForm : ThemedDialog
     public string FfmpegPath => ffmpegPathTextBox.Text.Trim();
 
     public string RecordingDirectory => recordingDirectoryTextBox.Text.Trim();
+
+    public string VideoPlayerPath => videoPlayerPathTextBox.Text.Trim();
 
     public int ModelCheckIntervalSeconds => (int)modelCheckIntervalSecondsInput.Value;
 
@@ -39,7 +43,7 @@ public sealed class EnvironmentSettingsForm : ThemedDialog
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;
-        ClientSize = new Size(680, 380);
+        ClientSize = new Size(680, 380 + FieldRowHeight);
         Padding = new Padding(22, 18, 22, 18);
 
         var rootLayout = new BufferedTableLayoutPanel
@@ -47,12 +51,12 @@ public sealed class EnvironmentSettingsForm : ThemedDialog
             BackColor = Theme.Background,
             ColumnCount = 3,
             Dock = DockStyle.Fill,
-            RowCount = 7
+            RowCount = 8
         };
         rootLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140F));
         rootLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
         rootLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100F));
-        for (var i = 0; i < 5; i++)
+        for (var i = 0; i < 6; i++)
         {
             rootLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, FieldRowHeight));
         }
@@ -62,6 +66,8 @@ public sealed class EnvironmentSettingsForm : ThemedDialog
 
         var ffmpegBrowseButton = CreateBrowseButton();
         var recordingDirectoryBrowseButton = CreateBrowseButton();
+        var videoPlayerBrowseButton = CreateBrowseButton();
+        videoPlayerBrowseButton.Click += (_, _) => BrowseVideoPlayerPath();
         ffmpegBrowseButton.Click += (_, _) => BrowseFfmpegPath();
         recordingDirectoryBrowseButton.Click += (_, _) => BrowseRecordingDirectory();
 
@@ -100,19 +106,23 @@ public sealed class EnvironmentSettingsForm : ThemedDialog
         rootLayout.Controls.Add(Field(recordingDirectoryTextBox), 1, 1);
         rootLayout.Controls.Add(recordingDirectoryBrowseButton, 2, 1);
 
-        rootLayout.Controls.Add(CreateLabel("접속 확인 간격"), 0, 2);
-        rootLayout.Controls.Add(Field(modelCheckIntervalSecondsInput, 160), 1, 2);
-        rootLayout.Controls.Add(CreateLabel("초", color: Theme.TextMuted), 2, 2);
+        rootLayout.Controls.Add(CreateLabel("동영상 플레이어"), 0, 2);
+        rootLayout.Controls.Add(Field(videoPlayerPathTextBox), 1, 2);
+        rootLayout.Controls.Add(videoPlayerBrowseButton, 2, 2);
 
-        rootLayout.Controls.Add(CreateLabel("방송 종료 판단 횟수"), 0, 3);
-        rootLayout.Controls.Add(Field(recordingStopAfterOfflineChecksInput, 160), 1, 3);
-        rootLayout.Controls.Add(CreateLabel("회", color: Theme.TextMuted), 2, 3);
+        rootLayout.Controls.Add(CreateLabel("접속 확인 간격"), 0, 3);
+        rootLayout.Controls.Add(Field(modelCheckIntervalSecondsInput, 160), 1, 3);
+        rootLayout.Controls.Add(CreateLabel("초", color: Theme.TextMuted), 2, 3);
 
-        rootLayout.Controls.Add(CreateLabel("하이라이트 캡쳐"), 0, 4);
-        rootLayout.Controls.Add(Field(highlightCaptureSecondsInput, 160), 1, 4);
-        rootLayout.Controls.Add(CreateLabel("초", color: Theme.TextMuted), 2, 4);
+        rootLayout.Controls.Add(CreateLabel("방송 종료 판단 횟수"), 0, 4);
+        rootLayout.Controls.Add(Field(recordingStopAfterOfflineChecksInput, 160), 1, 4);
+        rootLayout.Controls.Add(CreateLabel("회", color: Theme.TextMuted), 2, 4);
 
-        rootLayout.Controls.Add(buttonPanel, 0, 6);
+        rootLayout.Controls.Add(CreateLabel("하이라이트 캡쳐"), 0, 5);
+        rootLayout.Controls.Add(Field(highlightCaptureSecondsInput, 160), 1, 5);
+        rootLayout.Controls.Add(CreateLabel("초", color: Theme.TextMuted), 2, 5);
+
+        rootLayout.Controls.Add(buttonPanel, 0, 7);
         rootLayout.SetColumnSpan(buttonPanel, 3);
 
         AcceptButton = saveButton;
@@ -167,6 +177,28 @@ public sealed class EnvironmentSettingsForm : ThemedDialog
         }
     }
 
+    private void BrowseVideoPlayerPath()
+    {
+        using var dialog = new OpenFileDialog
+        {
+            Title = "동영상 플레이어 실행 파일을 선택하세요.",
+            Filter = "실행 파일 (*.exe)|*.exe",
+            CheckFileExists = true,
+            CheckPathExists = true,
+            Multiselect = false
+        };
+
+        if (File.Exists(videoPlayerPathTextBox.Text))
+        {
+            dialog.InitialDirectory = Path.GetDirectoryName(videoPlayerPathTextBox.Text);
+        }
+
+        if (dialog.ShowDialog(this) == DialogResult.OK)
+        {
+            videoPlayerPathTextBox.Text = dialog.FileName;
+        }
+    }
+
     private void BrowseRecordingDirectory()
     {
         var defaultDirectory = Path.Combine(
@@ -192,6 +224,7 @@ public sealed class EnvironmentSettingsForm : ThemedDialog
     {
         settings.FfmpegPath = FfmpegPath;
         settings.RecordingDirectory = RecordingDirectory;
+        settings.VideoPlayerPath = VideoPlayerPath;
         settings.ModelCheckIntervalSeconds = ModelCheckIntervalSeconds;
         settings.RecordingStopAfterOfflineChecks = RecordingStopAfterOfflineChecks;
         settings.HighlightCaptureSeconds = HighlightCaptureSeconds;

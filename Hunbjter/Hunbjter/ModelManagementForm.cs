@@ -34,6 +34,19 @@ public sealed class ModelManagementForm : ThemedDialog
     private bool loadingEditor;
     private bool updatingUrlFromUserId;
     private bool urlEditedManually;
+    private EditorMode editorMode = EditorMode.View;
+
+    /// <summary>
+    /// View: the editor just mirrors the selected grid row and nothing in it can be changed.
+    /// Edit (수정) / New (추가): fields become editable, the clicked button turns into 저장 and the
+    /// other one into 취소, and the grid is locked so the selection can't move mid-edit.
+    /// </summary>
+    private enum EditorMode
+    {
+        View,
+        Edit,
+        New
+    }
 
     public ModelManagementForm(
         SiteSettingsStore siteSettingsStore,
@@ -140,34 +153,9 @@ public sealed class ModelManagementForm : ThemedDialog
         // second, redundant line. The top margin instead lines the checkbox up roughly where the
         // other fields' inputs sit below their caption row.
         enabledCheckBox.Margin = new Padding(0, 22, 10, 0);
-        enabledCheckBox.CheckedChanged += (_, _) =>
-        {
-            if (loadingEditor || string.IsNullOrWhiteSpace(selectedFavoriteId))
-            {
-                return;
-            }
-
-            var favorite = FindFavorite(selectedFavoriteId);
-            if (favorite is null || favorite.Enabled == enabledCheckBox.Checked)
-            {
-                return;
-            }
-
-            if (SetFavoriteWatch(favorite, enabledCheckBox.Checked))
-            {
-                var idToReselect = favorite.Id;
-                RefreshGrid();
-                ReselectCurrent(idToReselect);
-            }
-            else
-            {
-                // Denied (e.g. currently recording) - put the box back without re-entering
-                // this handler via the loadingEditor guard above.
-                loadingEditor = true;
-                enabledCheckBox.Checked = favorite.Enabled;
-                loadingEditor = false;
-            }
-        };
+        // No immediate-save handler here any more: the editor is read-only until 수정/추가 is
+        // clicked, and the checkbox value is applied together with everything else on 저장
+        // (UpdateModel/AddModel). The grid's ON/OFF badge is still the one-click watch toggle.
 
         editor.Controls.Add(CreateFieldPanel("사이트", siteComboBox), 0, 0);
         editor.Controls.Add(CreateFieldPanel("닉네임", nicknameTextBox), 1, 0);
@@ -199,8 +187,9 @@ public sealed class ModelManagementForm : ThemedDialog
         ConfigureActionButton(updateButton, "수정", ButtonVariant.Secondary);
         ConfigureActionButton(deleteButton, "삭제", ButtonVariant.Danger);
         ConfigureActionButton(closeButton, "닫기", ButtonVariant.Ghost);
-        addButton.Click += (_, _) => AddModel();
-        updateButton.Click += (_, _) => UpdateModel();
+        // 추가/수정 buttons double as 저장/취소 while editing - see UpdateButtonStates.
+        addButton.Click += (_, _) => OnAddButtonClick();
+        updateButton.Click += (_, _) => OnUpdateButtonClick();
         deleteButton.Click += (_, _) => DeleteModel();
         closeButton.Click += (_, _) => Close();
 
@@ -282,6 +271,7 @@ public sealed class ModelManagementForm : ThemedDialog
         favorites = favoriteStore.Load();
         RefreshGrid();
         ClearEditor();
+        SetEditorMode(EditorMode.View);
     }
 
     private void RefreshGrid()
@@ -488,21 +478,119 @@ public sealed class ModelManagementForm : ThemedDialog
         return true;
     }
 
-    private void AddModel()
+    private void OnAddButtonClick()
+    {
+        switch (editorMode)
+        {
+            case EditorMode.View:
+                BeginNew();
+                break;
+            case EditorMode.New:
+                if (AddModel())
+                {
+                    SetEditorMode(EditorMode.View);
+                }
+                break;
+            case EditorMode.Edit:
+                CancelEditing();
+                break;
+        }
+    }
+
+    private void OnUpdateButtonClick()
+    {
+        switch (editorMode)
+        {
+            case EditorMode.View:
+                if (string.IsNullOrWhiteSpace(selectedFavoriteId))
+                {
+                    statusLabel.Text = "수정할 모델을 선택하세요.";
+                    return;
+                }
+
+                SetEditorMode(EditorMode.Edit);
+                nicknameTextBox.Focus();
+                break;
+            case EditorMode.Edit:
+                if (UpdateModel())
+                {
+                    SetEditorMode(EditorMode.View);
+                }
+                break;
+            case EditorMode.New:
+                CancelEditing();
+                break;
+        }
+    }
+
+    /// <summary>추가: empty nickname/id, the site kept as it is, and the URL pre-filled with that
+    /// site's base address (the id is appended automatically as it is typed).</summary>
+    private void BeginNew()
+    {
+        loadingEditor = true;
+        nicknameTextBox.Clear();
+        userIdTextBox.Clear();
+        memoTextBox.Clear();
+        broadcastStartTextBox.Clear();
+        broadcastEndTextBox.Clear();
+        checkIntervalInput.Value = 0;
+        enabledCheckBox.Checked = true;
+        urlTextBox.Text = (siteComboBox.SelectedItem as SiteProfile)?.LoginUrl ?? "";
+        urlEditedManually = false;
+        loadingEditor = false;
+
+        SetEditorMode(EditorMode.New);
+        statusLabel.Text = "새 모델 정보를 입력하고 저장을 누르세요.";
+        nicknameTextBox.Focus();
+    }
+
+    private void CancelEditing()
+    {
+        SetEditorMode(EditorMode.View);
+        // Put the editor back to the (unchanged) selected row, or empty if nothing is selected.
+        if (modelGrid.SelectedRows.Count > 0)
+        {
+            LoadSelectedRow();
+        }
+        else
+        {
+            ClearEditor();
+        }
+
+        statusLabel.Text = "";
+    }
+
+    private void SetEditorMode(EditorMode mode)
+    {
+        editorMode = mode;
+        var editable = mode != EditorMode.View;
+        foreach (var textBox in new[] { nicknameTextBox, userIdTextBox, urlTextBox, memoTextBox, broadcastStartTextBox, broadcastEndTextBox })
+        {
+            textBox.ReadOnly = !editable;
+            textBox.ForeColor = editable ? Theme.TextPrimary : Theme.TextSecondary;
+        }
+
+        siteComboBox.Enabled = editable;
+        enabledCheckBox.Enabled = editable;
+        checkIntervalInput.Enabled = editable;
+        modelGrid.Enabled = !editable;
+        gridSiteFilterComboBox.Enabled = !editable;
+        UpdateButtonStates();
+    }
+
+    private bool AddModel()
     {
         if (!TryReadEditor(out var site, out var nickname, out var userId, out var profileUrl))
         {
-            return;
+            return false;
         }
 
         var id = BuildFavoriteId(site, userId);
         var now = DateTimeOffset.Now;
-        var existing = FindFavorite(id);
-        if (existing is not null)
+        if (FindFavorite(id) is not null)
         {
-            selectedFavoriteId = existing.Id;
-            UpdateModel();
-            return;
+            statusLabel.Text = "같은 사이트와 아이디의 모델이 이미 있습니다.";
+            return false;
         }
 
         favorites.Items.Add(new FavoriteItem
@@ -528,26 +616,27 @@ public sealed class ModelManagementForm : ThemedDialog
         // set this, making it look like the add only worked on the second try.
         selectedFavoriteId = id;
         SaveAndRefresh($"모델을 추가했습니다: {nickname}");
+        return true;
     }
 
-    private void UpdateModel()
+    private bool UpdateModel()
     {
         if (string.IsNullOrWhiteSpace(selectedFavoriteId))
         {
             statusLabel.Text = "수정할 모델을 선택하세요.";
-            return;
+            return false;
         }
 
         var favorite = FindFavorite(selectedFavoriteId);
         if (favorite is null)
         {
             statusLabel.Text = "선택한 모델을 찾을 수 없습니다.";
-            return;
+            return false;
         }
 
         if (!TryReadEditor(out var site, out var nickname, out var userId, out var profileUrl))
         {
-            return;
+            return false;
         }
 
         var newId = BuildFavoriteId(site, userId);
@@ -555,19 +644,19 @@ public sealed class ModelManagementForm : ThemedDialog
         if (changesIdentity && recordingFavoriteIds.Contains(favorite.Id))
         {
             statusLabel.Text = "녹화중인 모델은 사이트와 아이디를 수정할 수 없습니다.";
-            return;
+            return false;
         }
 
         if (!enabledCheckBox.Checked && recordingFavoriteIds.Contains(favorite.Id))
         {
             statusLabel.Text = "녹화중인 모델은 감시를 끌 수 없습니다.";
-            return;
+            return false;
         }
 
         if (changesIdentity && favorites.Items.Any(item => item.Id.Equals(newId, StringComparison.OrdinalIgnoreCase)))
         {
             statusLabel.Text = "같은 사이트와 아이디의 모델이 이미 있습니다.";
-            return;
+            return false;
         }
 
         favorite.Id = newId;
@@ -579,12 +668,24 @@ public sealed class ModelManagementForm : ThemedDialog
         favorite.Memo = memoTextBox.Text.Trim();
         SetMetadata(favorite, "broadcastStartTime", broadcastStartTextBox.Text.Trim());
         SetMetadata(favorite, "broadcastEndTime", broadcastEndTextBox.Text.Trim());
+        if (favorite.Enabled != enabledCheckBox.Checked)
+        {
+            // Same stale-status cleanup SetFavoriteWatch does when the watch is toggled.
+            foreach (var key in new[] { "liveStatus", "liveMessage", "streamUrl", "resolution" })
+            {
+                favorite.Metadata.Remove(key);
+            }
+
+            favorite.RecordingPaused = false;
+        }
+
         favorite.Enabled = enabledCheckBox.Checked;
         favorite.CheckIntervalSeconds = ReadCheckIntervalSeconds();
         favorite.UpdatedAt = DateTimeOffset.Now;
         selectedFavoriteId = favorite.Id;
 
         SaveAndRefresh($"모델을 수정했습니다: {nickname}");
+        return true;
     }
 
     private void DeleteModel()
@@ -631,7 +732,9 @@ public sealed class ModelManagementForm : ThemedDialog
             return false;
         }
 
-        if (string.IsNullOrWhiteSpace(profileUrl))
+        // Empty, or still just the site's base address that 추가 pre-fills - build the real one.
+        if (string.IsNullOrWhiteSpace(profileUrl)
+            || profileUrl.TrimEnd('/').Equals(site.LoginUrl.Trim().TrimEnd('/'), StringComparison.OrdinalIgnoreCase))
         {
             profileUrl = BuildProfileUrl(site.LoginUrl, userId);
         }
@@ -710,8 +813,9 @@ public sealed class ModelManagementForm : ThemedDialog
 
         var userId = userIdTextBox.Text.Trim();
         updatingUrlFromUserId = true;
+        // No id yet: show the site's base address (what 추가 starts with) rather than blanking it.
         urlTextBox.Text = string.IsNullOrWhiteSpace(userId)
-            ? ""
+            ? site.LoginUrl
             : BuildProfileUrl(site.LoginUrl, userId);
         updatingUrlFromUserId = false;
     }
@@ -783,9 +887,33 @@ public sealed class ModelManagementForm : ThemedDialog
 
     private void UpdateButtonStates()
     {
-        updateButton.Enabled = !string.IsNullOrWhiteSpace(selectedFavoriteId);
-        deleteButton.Enabled = !string.IsNullOrWhiteSpace(selectedFavoriteId)
-            && !recordingFavoriteIds.Contains(selectedFavoriteId);
+        var hasSelection = !string.IsNullOrWhiteSpace(selectedFavoriteId);
+        switch (editorMode)
+        {
+            case EditorMode.New:
+                SetButton(addButton, "저장", ButtonVariant.Primary, true);
+                SetButton(updateButton, "취소", ButtonVariant.Secondary, true);
+                deleteButton.Enabled = false;
+                break;
+            case EditorMode.Edit:
+                SetButton(addButton, "취소", ButtonVariant.Secondary, true);
+                SetButton(updateButton, "저장", ButtonVariant.Primary, true);
+                deleteButton.Enabled = false;
+                break;
+            default:
+                SetButton(addButton, "추가", ButtonVariant.Primary, true);
+                SetButton(updateButton, "수정", ButtonVariant.Secondary, hasSelection);
+                deleteButton.Enabled = hasSelection && !recordingFavoriteIds.Contains(selectedFavoriteId);
+                break;
+        }
+    }
+
+    private static void SetButton(ThemedButton button, string text, ButtonVariant variant, bool enabled)
+    {
+        button.Text = text;
+        button.Variant = variant;
+        button.Enabled = enabled;
+        button.Invalidate();
     }
 
     private void SelectSite(string platform)

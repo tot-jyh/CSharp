@@ -45,10 +45,70 @@ public sealed class PandaLiveService
 
         var cookieHeader = await BuildCookieHeaderAsync(webView);
         var viewerUserIndex = await GetViewerUserIndexAsync(webView);
+        var headerState = IsMeaningfulViewerUserIndex(viewerUserIndex) ? "" : await GetHeaderLoginStateAsync(webView);
         return new PandaSessionStatus(
             !string.IsNullOrWhiteSpace(cookieHeader),
             CountCookiePairs(cookieHeader),
-            IsMeaningfulViewerUserIndex(viewerUserIndex));
+            IsMeaningfulViewerUserIndex(viewerUserIndex) || headerState == "loggedIn",
+            $"ui {(string.IsNullOrWhiteSpace(viewerUserIndex) ? "없음" : viewerUserIndex)}"
+                + (headerState == "" ? "" : $", 상단 {headerState}"));
+    }
+
+    /// <summary>
+    /// Fallback login check from the page header, for when xDeviceInfo's "ui" says "0": since
+    /// 2026-11-07 pandalive keeps writing ui "0" to localStorage even while signed in (confirmed:
+    /// profile dropdown showed the account, every xDeviceInfo write after 07:43 was "0"), so the
+    /// localStorage value alone can no longer tell a logged-in session from a guest one.
+    /// Signed out, the header's account menu trigger (a radix button with aria-haspopup="menu")
+    /// reads "로그인 / 회원가입"; signed in, the same slot is the avatar button that opens the
+    /// profile dropdown. Returns "loggedIn", "loggedOut", or "unknown" (not rendered within ~5s).
+    /// The polling lives here in C# on purpose: ExecuteScriptAsync does not await a Promise, so an
+    /// async script comes back as "{}" - the first version of this check did exactly that and
+    /// always read "unknown" (title stuck on OFF).
+    /// </summary>
+    private static async Task<string> GetHeaderLoginStateAsync(WebView2 webView)
+    {
+        const string script =
+            """
+            (() => {
+                const textOf = (element) => `${element.innerText || ''}`.replace(/\s+/g, '');
+                const top = (element) => element.getBoundingClientRect().top < 90;
+                const buttons = Array.from(document.querySelectorAll('button, a, [role="button"]')).filter(top);
+                if (buttons.some(element => {
+                    const text = textOf(element);
+                    return text.includes('로그인/회원가입') || text === '로그인' || text === '회원가입';
+                })) {
+                    return 'loggedOut';
+                }
+
+                const menus = buttons.filter(element => element.getAttribute('aria-haspopup') === 'menu');
+                if (menus.some(element => element.querySelector('img') || textOf(element) === '')) {
+                    return 'loggedIn';
+                }
+
+                return 'unknown';
+            })();
+            """;
+
+        for (var attempt = 0; attempt < 20; attempt++)
+        {
+            try
+            {
+                var state = JsonSerializer.Deserialize<string>(await webView.CoreWebView2.ExecuteScriptAsync(script));
+                if (state is "loggedIn" or "loggedOut")
+                {
+                    return state;
+                }
+            }
+            catch
+            {
+                // Page mid-navigation or script error - try again below.
+            }
+
+            await Task.Delay(250);
+        }
+
+        return "unknown";
     }
 
     /// <summary>
@@ -788,4 +848,5 @@ public sealed class PandaLiveService
 
 public sealed record RecordingHttpContext(string UserAgent, string HeaderText, int CookieCount);
 
-public sealed record PandaSessionStatus(bool IsLoggedIn, int CookieCount, bool HasViewerUserIndex);
+/// <param name="Detail">How HasViewerUserIndex was decided (xDeviceInfo ui / header state), for the log.</param>
+public sealed record PandaSessionStatus(bool IsLoggedIn, int CookieCount, bool HasViewerUserIndex, string Detail = "");

@@ -53,6 +53,17 @@ internal static class PandaMessages
             || message.Contains("풀방입장권", StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// A password-protected room ("입장 암호를 확인해 주세요"): the broadcast is still running, we
+    /// just can't enter yet, so like a paid room it keeps being retried until the broadcast
+    /// ends or the password is removed.
+    /// </summary>
+    public static bool IsPasswordRoom(string message)
+    {
+        return message.Contains("입장 암호", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("입장암호", StringComparison.OrdinalIgnoreCase);
+    }
+
     public static string HostForLog(string url)
     {
         return Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri.Host : "unknown";

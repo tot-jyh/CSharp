@@ -26,4 +26,7 @@ public sealed class LoginSettings
     public int? WindowX { get; set; }
 
     public int? WindowY { get; set; }
+
+    /// <summary>External video player the header's Player button launches.</summary>
+    public string VideoPlayerPath { get; set; } = "";
 }

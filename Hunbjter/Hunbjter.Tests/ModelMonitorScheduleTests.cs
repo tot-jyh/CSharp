@@ -145,6 +145,23 @@ public sealed class ModelMonitorScheduleTests
     }
 
     [Fact]
+    public async Task PasswordRoomKeepsTheConfiguredIntervalInsteadOfBackingOff()
+    {
+        var harness = new Harness();
+        harness.Probe.Next = new PandaLiveStatus { Success = false, Message = "입장 암호를 확인해 주세요." };
+
+        var monitor = harness.CreateMonitor();
+        for (var i = 0; i < 5; i++)
+        {
+            await harness.CheckAsync(monitor);
+        }
+
+        Assert.Equal(0, monitor.ConsecutiveFailures);
+        Assert.Equal(TimeSpan.FromSeconds(300), monitor.CurrentInterval);
+        Assert.Equal("기본", monitor.ScheduleReason);
+    }
+
+    [Fact]
     public async Task RecentlyLiveButNowOfflinePollsEveryThirtySeconds()
     {
         var harness = new Harness();
